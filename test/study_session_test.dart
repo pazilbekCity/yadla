@@ -182,7 +182,27 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Verify Anki-style 4 rating labels and initial interval captions
+      // Initially only Gilt sóz and "Juwaptı kórsetiw" button are visible;
+      // rating buttons and definition are hidden until "Juwaptı kórsetiw" is pressed.
+      expect(find.byKey(const Key('study-definition-card')), findsNothing);
+      expect(find.byKey(const Key('rate-again')), findsNothing);
+      expect(find.byKey(const Key('mark-mastered-button')), findsNothing);
+      expect(find.byKey(const Key('study-toggle-definition')), findsOneWidget);
+      expect(find.text(S.showDefinition), findsOneWidget);
+
+      // Association is 3rd and collapsible (closed initially, opens on tap)
+      expect(find.byKey(const Key('study-association-text')), findsNothing);
+      await tester.tap(find.byKey(const Key('study-toggle-association')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('study-association-text')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('study-toggle-association')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('study-association-text')), findsNothing);
+
+      // Tap "Juwaptı kórsetiw" -> reveals definition AND bottom rating buttons
+      await tester.tap(find.byKey(const Key('study-toggle-definition')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('study-definition-card')), findsOneWidget);
       expect(find.text(S.rateAgain), findsOneWidget);
       expect(find.text(S.intervalAgain), findsOneWidget);
       expect(find.text(S.rateHard), findsOneWidget);
@@ -192,17 +212,13 @@ void main() {
       expect(find.text(S.rateEasy), findsOneWidget);
       expect(find.text(S.intervalEasy), findsOneWidget);
 
-      // Definition is hidden initially, revealed on tap
-      expect(find.byKey(const Key('study-definition-card')), findsNothing);
-      await tester.tap(find.byKey(const Key('study-toggle-definition')));
-      await tester.pumpAndSettle();
-      expect(find.byKey(const Key('study-definition-card')), findsOneWidget);
-
       // Tap `Qayta` (1) on first card -> card stays in queue (requeued once)
       await tester.tap(find.byKey(const Key('rate-again')));
       await tester.pumpAndSettle();
 
-      // Tap `Qıyın` (2) on second card -> also requeued once
+      // Reveal second card's answer, then tap `Qıyın` (2) -> also requeued once
+      await tester.tap(find.byKey(const Key('study-toggle-definition')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('rate-hard')));
       await tester.pumpAndSettle();
 
@@ -218,8 +234,12 @@ void main() {
       await tester.tap(find.byKey(const Key('study-next-card')));
       await tester.pumpAndSettle();
 
-      // Rate the two requeued cards as `Jaqsı` (3) and `Ańsat` (4)
+      // Reveal and rate the two requeued cards as `Jaqsı` (3) and `Ańsat` (4)
+      await tester.tap(find.byKey(const Key('study-toggle-definition')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('rate-good')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('study-toggle-definition')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('rate-easy')));
       await tester.pumpAndSettle();
@@ -270,6 +290,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      // Reveal answer first so rating buttons appear
+      await tester.tap(find.byKey(const Key('study-toggle-definition')));
+      await tester.pumpAndSettle();
+
       // Tap `Jaqsı` twice in the same frame before rebuild settles
       final goodBtn = find.byKey(const Key('rate-good'));
       await tester.tap(goodBtn);
@@ -303,12 +327,16 @@ void main() {
       await tester.tap(find.text(S.finishSession));
       await tester.pumpAndSettle();
 
-      // Navigate into Book -> Topic -> Empty Deck -> tap Study Deck button
+      // Navigate into Book -> test Study Book button -> Topic -> tap Study Topic button
       await tester.tap(find.text('7-klass'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Mexanika'));
+      await tester.tap(find.byKey(const Key('study-book-button')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Bos toplam'));
+      expect(find.byKey(const Key('study-empty')), findsOneWidget);
+      await tester.tap(find.text(S.finishSession));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Mexanika'));
       await tester.pumpAndSettle();
 
       await tester.tap(find.byKey(const Key('study-deck-button')));

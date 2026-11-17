@@ -82,6 +82,31 @@ ORDER BY f.created_at, f.id
         return rows.map(Flashcard.fromMap).toList();
       });
 
+  /// Lists all flashcards across every topic and deck belonging to [bookId].
+  Future<List<Flashcard>> listByBook(String bookId) =>
+      guardDb('List flashcards by book', () async {
+        final rows = await db.rawQuery('''
+SELECT f.* FROM flashcards f
+JOIN decks d ON f.deck_id = d.id
+JOIN topics t ON d.topic_id = t.id
+WHERE t.book_id = ?
+ORDER BY f.created_at, f.id
+''', [bookId]);
+        return rows.map(Flashcard.fromMap).toList();
+      });
+
+  /// Lists all flashcards across every deck belonging to [topicId].
+  Future<List<Flashcard>> listByTopic(String topicId) =>
+      guardDb('List flashcards by topic', () async {
+        final rows = await db.rawQuery('''
+SELECT f.* FROM flashcards f
+JOIN decks d ON f.deck_id = d.id
+WHERE d.topic_id = ?
+ORDER BY f.created_at, f.id
+''', [topicId]);
+        return rows.map(Flashcard.fromMap).toList();
+      });
+
   /// Lists eligible (`status = 'learning'`) flashcards in [deckId] for a study
   /// session, annotated with due status as of [asOf] (defaults to [clock]).
   /// Mastered and suspended cards are excluded. If [onlyDue] is true, only
@@ -118,6 +143,83 @@ ORDER BY
   f.created_at,
   f.id
 ''', [deckId, onlyDue ? 1 : 0, cutoff, cutoff]);
+        return rows.map((r) => _mapPrioritized(r, cutoff)).toList();
+      });
+
+  /// Lists eligible (`status = 'learning'`) flashcards across all decks in
+  /// [topicId], annotated with due status as of [asOf].
+  Future<List<PrioritizedFlashcard>> listEligibleByTopic(
+    String topicId, {
+    DateTime? asOf,
+    bool onlyDue = false,
+  }) =>
+      guardDb('List eligible flashcards by topic', () async {
+        final cutoff = asOf == null ? nowMs() : msFromDate(asOf);
+        final rows = await db.rawQuery('''
+SELECT
+  f.*,
+  latest.due_at AS last_due_at,
+  latest.interval_days AS last_interval_days
+FROM flashcards f
+JOIN decks d ON f.deck_id = d.id
+LEFT JOIN (
+  SELECT r.flashcard_id, r.due_at, r.interval_days
+  FROM review_history r
+  WHERE r.rowid = (
+    SELECT r2.rowid FROM review_history r2
+    WHERE r2.flashcard_id = r.flashcard_id
+    ORDER BY r2.reviewed_at DESC, r2.rowid DESC
+    LIMIT 1
+  )
+) latest ON latest.flashcard_id = f.id
+WHERE d.topic_id = ?
+  AND f.status = 'learning'
+  AND (? = 0 OR latest.due_at IS NULL OR latest.due_at <= ?)
+ORDER BY
+  CASE WHEN latest.due_at IS NULL OR latest.due_at <= ? THEN 0 ELSE 1 END,
+  COALESCE(latest.due_at, 0),
+  f.created_at,
+  f.id
+''', [topicId, onlyDue ? 1 : 0, cutoff, cutoff]);
+        return rows.map((r) => _mapPrioritized(r, cutoff)).toList();
+      });
+
+  /// Lists eligible (`status = 'learning'`) flashcards across all topics and
+  /// decks in [bookId], annotated with due status as of [asOf].
+  Future<List<PrioritizedFlashcard>> listEligibleByBook(
+    String bookId, {
+    DateTime? asOf,
+    bool onlyDue = false,
+  }) =>
+      guardDb('List eligible flashcards by book', () async {
+        final cutoff = asOf == null ? nowMs() : msFromDate(asOf);
+        final rows = await db.rawQuery('''
+SELECT
+  f.*,
+  latest.due_at AS last_due_at,
+  latest.interval_days AS last_interval_days
+FROM flashcards f
+JOIN decks d ON f.deck_id = d.id
+JOIN topics t ON d.topic_id = t.id
+LEFT JOIN (
+  SELECT r.flashcard_id, r.due_at, r.interval_days
+  FROM review_history r
+  WHERE r.rowid = (
+    SELECT r2.rowid FROM review_history r2
+    WHERE r2.flashcard_id = r.flashcard_id
+    ORDER BY r2.reviewed_at DESC, r2.rowid DESC
+    LIMIT 1
+  )
+) latest ON latest.flashcard_id = f.id
+WHERE t.book_id = ?
+  AND f.status = 'learning'
+  AND (? = 0 OR latest.due_at IS NULL OR latest.due_at <= ?)
+ORDER BY
+  CASE WHEN latest.due_at IS NULL OR latest.due_at <= ? THEN 0 ELSE 1 END,
+  COALESCE(latest.due_at, 0),
+  f.created_at,
+  f.id
+''', [bookId, onlyDue ? 1 : 0, cutoff, cutoff]);
         return rows.map((r) => _mapPrioritized(r, cutoff)).toList();
       });
 

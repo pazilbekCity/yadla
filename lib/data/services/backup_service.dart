@@ -43,6 +43,7 @@ class ValidatedBackupPackage {
   const ValidatedBackupPackage({
     required this.snapshot,
     required this.cardImageAssetKeys,
+    this.bookImageAssetKeys = const {},
     required this.images,
   });
 
@@ -51,6 +52,10 @@ class ValidatedBackupPackage {
   /// Maps `flashcard.id` -> portable `assetKey` in [images] when the card has
   /// an embedded local image.
   final Map<String, String> cardImageAssetKeys;
+
+  /// Maps `book.id` -> portable `assetKey` in [images] when the book has an
+  /// embedded local cover image.
+  final Map<String, String> bookImageAssetKeys;
 
   /// Maps portable `assetKey` -> decoded [EmbeddedBackupImage].
   final Map<String, EmbeddedBackupImage> images;
@@ -140,37 +145,56 @@ class BackupService {
     final sourcePathToAssetKey = <String, String>{};
     final usedAssetKeys = <String>{};
 
+    String? embedLocalImage(String ownerId, String? rawImagePath) {
+      final resolvedFile = ImageStorageService.resolveLocalImageFile(
+        rawImagePath,
+      );
+      if (resolvedFile == null) return null;
+      final canonicalPath = resolvedFile.path;
+      var assetKey = sourcePathToAssetKey[canonicalPath];
+      if (assetKey == null) {
+        final baseName = p.basename(canonicalPath);
+        var candidateName = baseName;
+        var candidateKey = 'card_images/$candidateName';
+        if (usedAssetKeys.contains(candidateKey)) {
+          candidateName = '${ownerId}_$baseName';
+          candidateKey = 'card_images/$candidateName';
+        }
+        usedAssetKeys.add(candidateKey);
+        assetKey = candidateKey;
+        sourcePathToAssetKey[canonicalPath] = assetKey;
+
+        final fileBytes = resolvedFile.readAsBytesSync();
+        imagesPayload[assetKey] = {
+          'file_name': candidateName,
+          'bytes_base64': base64Encode(fileBytes),
+        };
+      }
+      return assetKey;
+    }
+
+    final exportedBooks = <Map<String, Object?>>[];
+    for (final rawBook in snapshot.books) {
+      final bookMap = Map<String, Object?>.of(rawBook);
+      final bookId = bookMap['id'] as String;
+      final rawImagePath = bookMap['image_path'] as String?;
+      final assetKey = embedLocalImage(bookId, rawImagePath);
+      if (assetKey != null) {
+        bookMap['image_path'] = assetKey;
+        bookMap['image_asset_key'] = assetKey;
+      } else {
+        bookMap['image_asset_key'] = null;
+      }
+      exportedBooks.add(bookMap);
+    }
+
     final exportedFlashcards = <Map<String, Object?>>[];
     for (final rawCard in snapshot.flashcards) {
       final cardMap = Map<String, Object?>.of(rawCard);
       final cardId = cardMap['id'] as String;
       final rawImagePath = cardMap['image_path'] as String?;
-
-      final resolvedFile = ImageStorageService.resolveLocalImageFile(
-        rawImagePath,
-      );
-      if (resolvedFile != null) {
-        final canonicalPath = resolvedFile.path;
-        var assetKey = sourcePathToAssetKey[canonicalPath];
-        if (assetKey == null) {
-          final baseName = p.basename(canonicalPath);
-          var candidateName = baseName;
-          var candidateKey = 'card_images/$candidateName';
-          if (usedAssetKeys.contains(candidateKey)) {
-            candidateName = '${cardId}_$baseName';
-            candidateKey = 'card_images/$candidateName';
-          }
-          usedAssetKeys.add(candidateKey);
-          assetKey = candidateKey;
-          sourcePathToAssetKey[canonicalPath] = assetKey;
-
-          final fileBytes = resolvedFile.readAsBytesSync();
-          imagesPayload[assetKey] = {
-            'file_name': candidateName,
-            'bytes_base64': base64Encode(fileBytes),
-          };
-        }
-        // Store portable relative reference instead of device-specific path.
+      final assetKey = embedLocalImage(cardId, rawImagePath);
+      if (assetKey != null) {
         cardMap['image_path'] = assetKey;
         cardMap['image_asset_key'] = assetKey;
       } else {
@@ -185,7 +209,7 @@ class BackupService {
       'schema_version': snapshot.schemaVersion,
       'exported_at': snapshot.exportedAtMs,
       'subjects': snapshot.subjects,
-      'books': snapshot.books,
+      'books': exportedBooks,
       'topics': snapshot.topics,
       'decks': snapshot.decks,
       'flashcards': exportedFlashcards,
@@ -413,6 +437,7 @@ class BackupService {
     final books = <Map<String, Object?>>[];
     final bookIds = <String>{};
     final bookSiblingKeys = <String>{};
+    final bookImageAssetKeys = <String, String>{};
     for (final item in booksRaw) {
       if (item is! Map) {
         return BackupParseResult.invalid(
@@ -427,12 +452,18 @@ class BackupService {
       final createdAt = m['created_at'];
       final updatedAt = m['updated_at'];
       final desc = m['description'];
+      final pubYear = m['publication_year'];
+      final imgPath = m['image_path'];
+      final imgAssetKey = m['image_asset_key'];
       if (id == null ||
           subjectId == null ||
           name == null ||
           createdAt is! int ||
           updatedAt is! int ||
-          (desc != null && desc is! String)) {
+          (desc != null && desc is! String) ||
+          (pubYear != null && pubYear is! int) ||
+          (imgPath != null && _nonEmptyString(imgPath) == null) ||
+          (imgAssetKey != null && imgAssetKey is! String)) {
         return BackupParseResult.invalid(
           fileName: fileName,
           error: const BackupValidationError(BackupErrorKind.invalidSchema),
@@ -451,11 +482,26 @@ class BackupService {
           error: const BackupValidationError(BackupErrorKind.invalidSchema),
         );
       }
+      final resolvedBookAssetKey = _nonEmptyString(imgAssetKey) ??
+          (imgPath is String && parsedImages.containsKey(imgPath)
+              ? imgPath
+              : null);
+      if (resolvedBookAssetKey != null) {
+        if (!parsedImages.containsKey(resolvedBookAssetKey)) {
+          return BackupParseResult.invalid(
+            fileName: fileName,
+            error: const BackupValidationError(BackupErrorKind.corruptedImages),
+          );
+        }
+        bookImageAssetKeys[id] = resolvedBookAssetKey;
+      }
       books.add({
         'id': id,
         'subject_id': subjectId,
         'name': name,
         'description': desc,
+        'publication_year': pubYear,
+        'image_path': _nonEmptyString(imgPath),
         'created_at': createdAt,
         'updated_at': updatedAt,
       });
@@ -782,6 +828,7 @@ class BackupService {
       package: ValidatedBackupPackage(
         snapshot: snapshot,
         cardImageAssetKeys: cardImageAssetKeys,
+        bookImageAssetKeys: bookImageAssetKeys,
         images: parsedImages,
       ),
     );
@@ -823,10 +870,19 @@ class BackupService {
         }
       }
 
+      final resolvedBookImagePaths = <String, String>{};
+      for (final entry in package.bookImageAssetKeys.entries) {
+        final localPath = assetKeyToNewLocalPath[entry.value];
+        if (localPath != null) {
+          resolvedBookImagePaths[entry.key] = localPath;
+        }
+      }
+
       return await db.backups.restoreRawSnapshot(
         snapshot: package.snapshot,
         mode: mode,
         resolvedCardImagePaths: resolvedCardImagePaths,
+        resolvedBookImagePaths: resolvedBookImagePaths,
         imagesRestoredCount: assetKeyToNewLocalPath.length,
       );
     } catch (_) {

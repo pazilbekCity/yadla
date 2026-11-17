@@ -76,17 +76,35 @@ void main() {
       expect(await db.subjects.getById(s.id), isNull);
     });
 
-    test('book/topic/deck CRUD', () async {
+    test('book/topic/deck CRUD including book year, cover image, and default deck', () async {
       final ids = await seed(db);
       final b = (await db.books.getById(ids.book))!;
-      expect((await db.books.update(b.copyWith(name: 'Grade 9'))).name, 'Grade 9');
+      final updatedBook = await db.books.update(
+        b.copyWith(
+          name: 'Grade 9',
+          publicationYear: 2024,
+          imagePath: 'covers/grade9.png',
+        ),
+      );
+      expect(updatedBook.name, 'Grade 9');
+      expect(updatedBook.publicationYear, 2024);
+      expect(updatedBook.imagePath, 'covers/grade9.png');
       final t = (await db.topics.getById(ids.topic))!;
       expect((await db.topics.update(t.copyWith(name: 'Excel'))).name, 'Excel');
       final d = (await db.decks.getById(ids.deck))!;
       expect((await db.decks.update(d.copyWith(name: 'Terms'))).name, 'Terms');
+      // getOrCreateDefaultForTopic reuses existing deck or creates one for a new topic
+      expect((await db.decks.getOrCreateDefaultForTopic(ids.topic)).id, d.id);
+      final t2 = await db.topics.create(bookId: ids.book, name: 'PowerPoint');
+      final autoDeck = await db.decks.getOrCreateDefaultForTopic(t2.id);
+      expect(autoDeck.topicId, t2.id);
       expect(await db.books.listBySubject(ids.subject), hasLength(1));
-      expect(await db.topics.listByBook(ids.book), hasLength(1));
+      expect(await db.topics.listByBook(ids.book), hasLength(2));
       expect(await db.decks.listByTopic(ids.topic), hasLength(1));
+      expect(await db.flashcards.listByBook(ids.book), hasLength(1));
+      expect(await db.flashcards.listByTopic(ids.topic), hasLength(1));
+      expect(await db.flashcards.listEligibleByBook(ids.book), hasLength(1));
+      expect(await db.flashcards.listEligibleByTopic(ids.topic), hasLength(1));
     });
 
     test('flashcard fields, image placement, timestamps', () async {

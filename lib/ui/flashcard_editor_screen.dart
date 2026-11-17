@@ -39,6 +39,7 @@ class _FlashcardEditorScreenState extends State<FlashcardEditorScreen> {
       TextEditingController(text: widget.existing?.imagePath ?? '');
   late ImagePlacement _placement =
       widget.existing?.imagePlacement ?? ImagePlacement.front;
+  bool _associationExpanded = true;
   bool _busy = false;
   String? _error;
 
@@ -178,33 +179,65 @@ class _FlashcardEditorScreenState extends State<FlashcardEditorScreen> {
             children: [
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.all(16),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   children: [
+                    // 1. Gilt sóz (Target word)
                     TextFormField(
                       key: const Key('card-target'),
                       controller: _target,
-                      decoration: InputDecoration(labelText: S.fieldTarget),
+                      decoration: InputDecoration(
+                        labelText: S.fieldTarget,
+                        isDense: true,
+                      ),
                       validator: (v) => (v == null || v.trim().isEmpty)
                           ? S.targetRequired
                           : null,
                     ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      key: const Key('card-association'),
-                      controller: _association,
-                      decoration:
-                          InputDecoration(labelText: S.fieldAssociation),
-                      maxLines: 2,
-                    ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
+                    // 2. Anıqlama (Definition)
                     TextFormField(
                       key: const Key('card-definition'),
                       controller: _definition,
-                      decoration:
-                          InputDecoration(labelText: S.fieldDefinition),
-                      maxLines: 3,
+                      decoration: InputDecoration(
+                        labelText: S.fieldDefinition,
+                        isDense: true,
+                      ),
+                      maxLines: 2,
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
+                    // 3. Assotsiaciya (Association) — collapsible by user
+                    if (_associationExpanded)
+                      TextFormField(
+                        key: const Key('card-association'),
+                        controller: _association,
+                        decoration: InputDecoration(
+                          labelText: S.fieldAssociation,
+                          isDense: true,
+                          suffixIcon: IconButton(
+                            key: const Key('editor-toggle-association'),
+                            tooltip: S.hideAssociation,
+                            icon: const Icon(Icons.expand_less),
+                            onPressed: () => setState(
+                              () => _associationExpanded = false,
+                            ),
+                          ),
+                        ),
+                        maxLines: 2,
+                      )
+                    else
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          key: const Key('editor-toggle-association'),
+                          onPressed: () => setState(
+                            () => _associationExpanded = true,
+                          ),
+                          icon: const Icon(Icons.lightbulb_outline, size: 18),
+                          label: Text(S.showAssociation),
+                        ),
+                      ),
+                    const SizedBox(height: 8),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
@@ -212,8 +245,10 @@ class _FlashcardEditorScreenState extends State<FlashcardEditorScreen> {
                           child: TextFormField(
                             key: const Key('card-image'),
                             controller: _image,
-                            decoration:
-                                InputDecoration(labelText: S.fieldImage),
+                            decoration: InputDecoration(
+                              labelText: S.fieldImage,
+                              isDense: true,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -232,10 +267,10 @@ class _FlashcardEditorScreenState extends State<FlashcardEditorScreen> {
                           ),
                       ],
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 10),
                     Text(S.fieldPlacement,
                         style: Theme.of(context).textTheme.labelLarge),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     SegmentedButton<ImagePlacement>(
                       segments: [
                         for (final p in ImagePlacement.values)

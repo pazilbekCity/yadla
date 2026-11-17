@@ -56,7 +56,7 @@ class S {
   }
 
   // General
-  static const appTitle = 'Anki APK';
+  static const appTitle = 'Yadla';
 
   static String get selectLanguage => _pick(
         kaa: 'Tildi tańlaw',
@@ -238,6 +238,30 @@ class S {
         ru: 'Изменить книгу',
       );
 
+  static String get bookYear => _pick(
+        kaa: 'Kitap jılı (ixtiyariy)',
+        uz: 'Kitob yili (ixtiyoriy)',
+        ru: 'Год издания (необязательно)',
+      );
+
+  static String get bookYearInvalid => _pick(
+        kaa: 'Kitap jılın durıs san menen kiritiń (mısalı: 2024).',
+        uz: 'Kitob yilini toʻgʻri raqam bilan kiriting (masalan: 2024).',
+        ru: 'Введите корректный год издания (например: 2024).',
+      );
+
+  static String bookYearBadge(int year) => _pick(
+        kaa: '$year-jıl',
+        uz: '$year-yil',
+        ru: '$year г.',
+      );
+
+  static String get bookCoverImage => _pick(
+        kaa: 'Kitap súwreti (ixtiyariy)',
+        uz: 'Kitob rasmi (ixtiyoriy)',
+        ru: 'Обложка книги (необязательно)',
+      );
+
   // Topics
   static String get topicsEmpty => _pick(
         kaa: 'Bul kitapta áli temalar joq. «Tema qosıw» túymesin basıń.',
@@ -370,15 +394,27 @@ class S {
       );
 
   static String get showDefinition => _pick(
-        kaa: 'Anıqlamanı kórsetiw',
-        uz: 'Taʼrifni koʻrsatish',
+        kaa: 'Juwaptı kórsetiw',
+        uz: 'Javobni koʻrsatish',
         ru: 'Показать определение',
       );
 
   static String get hideDefinition => _pick(
-        kaa: 'Anıqlamanı jasırıw',
-        uz: 'Taʼrifni yashirish',
+        kaa: 'Juwaptı jasırıw',
+        uz: 'Javobni yashirish',
         ru: 'Скрыть определение',
+      );
+
+  static String get showAssociation => _pick(
+        kaa: 'Assotsiaciyanı kórsetiw',
+        uz: 'Assotsiatsiyani koʻrsatish',
+        ru: 'Показать ассоциацию',
+      );
+
+  static String get hideAssociation => _pick(
+        kaa: 'Assotsiaciyanı jasırıw',
+        uz: 'Assotsiatsiyani yashirish',
+        ru: 'Скрыть ассоциацию',
       );
 
   static String get noDefinition => _pick(
@@ -410,6 +446,18 @@ class S {
         kaa: 'Pándi úyreniw',
         uz: 'Fanni oʻrganish',
         ru: 'Учить предмет',
+      );
+
+  static String get studyBook => _pick(
+        kaa: 'Kitaptı úyreniw',
+        uz: 'Kitobni oʻrganish',
+        ru: 'Учить книгу',
+      );
+
+  static String get studyTopic => _pick(
+        kaa: 'Temanı úyreniw',
+        uz: 'Mavzuni oʻrganish',
+        ru: 'Учить тему',
       );
 
   static String get studyEmpty => _pick(
@@ -875,5 +923,69 @@ class S {
             'Zaxira nusxadagi rasm maʼlumotlari shikastlangan yoki topilmadi.',
         ru:
             'Данные изображений в резервной копии повреждены или отсутствуют.',
+      );
+
+  // Preset database (Google Sheets) subject creation options
+  static String get addSubjectChooseMethod => _pick(
+        kaa: 'Pán qosıw usılın tańlań',
+        uz: 'Fan qoʻshish usulini tanlang',
+        ru: 'Выберите способ добавления предмета',
+      );
+
+  static String get addSubjectFromDatabase => _pick(
+        kaa: '1. Bazadan bar kitaplardı júklep alıw',
+        uz: '1. Bazadan mavjud kitoblarni yuklab olish',
+        ru: '1. Скачать готовые книги из базы',
+      );
+
+  static String get addSubjectFromDatabaseSub => _pick(
+        kaa: 'Tayar pán, kitaplar, temalar hám kartochkalardı júklep alıw',
+        uz: 'Tayyor fan, kitoblar, mavzular va kartochkalarni yuklab olish',
+        ru: 'Загрузить готовый предмет, книги, темы и карточки',
+      );
+
+  static String get addSubjectFromScratch => _pick(
+        kaa: '2. 0-den ózi jaratıw',
+        uz: '2. 0 dan oʻzi yaratish',
+        ru: '2. Создать с нуля самостоятельно',
+      );
+
+  static String get addSubjectFromScratchSub => _pick(
+        kaa: 'Jańa pán, kitap hám kartochkalardı qoldan kirgiziw',
+        uz: 'Yangi fan, kitob va kartochkalarni qoʻlda kiritish',
+        ru: 'Вручную создать новый предмет, книги и карточки',
+      );
+
+  static String get selectPresetSubjectTitle => _pick(
+        kaa: 'Bazadan pándi tańlań',
+        uz: 'Bazadan fanni tanlang',
+        ru: 'Выберите предмет из базы',
+      );
+
+  static String get downloadingPresetDatabase => _pick(
+        kaa: 'Bazadan maǵlıwmatlar júklenbekte...',
+        uz: 'Bazadan maʼlumotlar yuklanmoqda...',
+        ru: 'Загрузка данных из базы...',
+      );
+
+  static String presetImportSuccess(
+    String subjectName,
+    int booksCount,
+    int topicsCount,
+    int cardsImported,
+  ) =>
+      _pick(
+        kaa:
+            '«$subjectName» bazadan júklendi: $booksCount kitap, $topicsCount tema, $cardsImported jańa kartochka.',
+        uz:
+            '«$subjectName» bazadan yuklandi: $booksCount ta kitob, $topicsCount ta mavzu, $cardsImported ta yangi kartochka.',
+        ru:
+            '«$subjectName» загружен из базы: книг — $booksCount, тем — $topicsCount, новых карточек — $cardsImported.',
+      );
+
+  static String get presetImportError => _pick(
+        kaa: 'Bazadan júklewde qátelik júz berdi. Internet baylanısın tekseriń.',
+        uz: 'Bazadan yuklashda xatolik yuz berdi. Internet aloqasini tekshiring.',
+        ru: 'Ошибка при загрузке из базы. Проверьте подключение к интернету.',
       );
 }

@@ -139,6 +139,7 @@ class BackupRepository extends RepositoryBase {
     required RawDatabaseSnapshot snapshot,
     required RestoreMode mode,
     required Map<String, String> resolvedCardImagePaths,
+    Map<String, String> resolvedBookImagePaths = const {},
     required int imagesRestoredCount,
   }) =>
       guardDb('Restore database snapshot', () async {
@@ -173,11 +174,17 @@ class BackupRepository extends RepositoryBase {
             }
 
             for (final b in snapshot.books) {
+              final bookId = b['id'] as String;
+              final bookImagePath = resolvedBookImagePaths.containsKey(bookId)
+                  ? resolvedBookImagePaths[bookId]
+                  : b['image_path'] as String?;
               await txn.insert('books', {
-                'id': b['id'],
+                'id': bookId,
                 'subject_id': b['subject_id'],
                 'name': b['name'],
                 'description': b['description'],
+                'publication_year': b['publication_year'],
+                'image_path': bookImagePath,
                 'created_at': b['created_at'],
                 'updated_at': b['updated_at'],
               });
@@ -311,11 +318,16 @@ class BackupRepository extends RepositoryBase {
               } else if (bookByParentAndName.containsKey(compositeKey)) {
                 bookIdMap[oldId] = bookByParentAndName[compositeKey]!;
               } else {
+                final bookImagePath = resolvedBookImagePaths.containsKey(oldId)
+                    ? resolvedBookImagePaths[oldId]
+                    : b['image_path'] as String?;
                 await txn.insert('books', {
                   'id': oldId,
                   'subject_id': targetSubjectId,
                   'name': name,
                   'description': b['description'],
+                  'publication_year': b['publication_year'],
+                  'image_path': bookImagePath,
                   'created_at': b['created_at'],
                   'updated_at': b['updated_at'],
                 });

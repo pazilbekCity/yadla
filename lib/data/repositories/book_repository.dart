@@ -10,15 +10,20 @@ class BookRepository extends RepositoryBase {
     required String subjectId,
     required String name,
     String? description,
+    int? publicationYear,
+    String? imagePath,
   }) =>
       guardDb('Create book', () async {
         final now = nowMs();
         final id = generateId();
+        final img = optionalText(imagePath);
         await db.insert('books', {
           'id': id,
           'subject_id': subjectId,
           'name': requireText(name, 'Book name'),
           'description': optionalText(description),
+          'publication_year': ?publicationYear,
+          'image_path': ?img,
           'created_at': now,
           'updated_at': now,
         });
@@ -46,6 +51,8 @@ class BookRepository extends RepositoryBase {
             'subject_id': b.subjectId,
             'name': requireText(b.name, 'Book name'),
             'description': optionalText(b.description),
+            'publication_year': b.publicationYear,
+            'image_path': optionalText(b.imagePath),
             'updated_at': nowMs(),
           },
           where: 'id = ?',

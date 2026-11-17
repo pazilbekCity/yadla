@@ -236,15 +236,20 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Показать определение'), findsOneWidget);
+      expect(
+        find.text('Файл изображения не найден или не читается.'),
+        findsOneWidget,
+      );
+
+      // Reveal definition to show the rating buttons
+      await tester.tap(find.byKey(const Key('study-toggle-definition')));
+      await tester.pumpAndSettle();
+
       expect(find.text('Выучено'), findsOneWidget);
       expect(find.text('Снова'), findsOneWidget);
       expect(find.text('Трудно'), findsOneWidget);
       expect(find.text('Хорошо'), findsOneWidget);
       expect(find.text('Легко'), findsOneWidget);
-      expect(
-        find.text('Файл изображения не найден или не читается.'),
-        findsOneWidget,
-      );
 
       // FlashcardEditorScreen & Preview in Russian (ru)
       await tester.pumpWidget(

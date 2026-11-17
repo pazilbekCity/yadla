@@ -39,6 +39,37 @@ class DeckRepository extends RepositoryBase {
         return rows.map(Deck.fromMap).toList();
       });
 
+  /// Returns the first existing deck for [topicId], or creates and returns a
+  /// default deck when the topic does not yet have one.
+  Future<Deck> getOrCreateDefaultForTopic(
+    String topicId, {
+    String defaultName = 'Tiykarǵı',
+  }) =>
+      guardDb('Get or create default deck', () async {
+        final existing = await db.query(
+          'decks',
+          where: 'topic_id = ?',
+          whereArgs: [topicId],
+          orderBy: 'created_at ASC, id ASC',
+          limit: 1,
+        );
+        if (existing.isNotEmpty) {
+          return Deck.fromMap(existing.first);
+        }
+        final now = nowMs();
+        final id = generateId();
+        final trimmed = defaultName.trim();
+        await db.insert('decks', {
+          'id': id,
+          'topic_id': topicId,
+          'name': trimmed.isEmpty ? 'Tiykarǵı' : trimmed,
+          'description': null,
+          'created_at': now,
+          'updated_at': now,
+        });
+        return (await getById(id))!;
+      });
+
   Future<Deck> update(Deck d) => guardDb('Update deck', () async {
         final n = await db.update(
           'decks',

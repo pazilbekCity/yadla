@@ -19,6 +19,7 @@ class FlashcardPreviewScreen extends StatefulWidget {
 
 class _FlashcardPreviewScreenState extends State<FlashcardPreviewScreen> {
   bool _revealed = false;
+  bool _associationExpanded = false;
 
   bool get _hasImage {
     final path = widget.card.imagePath;
@@ -47,6 +48,7 @@ class _FlashcardPreviewScreenState extends State<FlashcardPreviewScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            // 1. Gilt sóz (Target word)
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(20),
@@ -58,14 +60,6 @@ class _FlashcardPreviewScreenState extends State<FlashcardPreviewScreen> {
                       style: Theme.of(context).textTheme.headlineSmall,
                       textAlign: TextAlign.center,
                     ),
-                    if (assoc != null && assoc.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      Text(
-                        assoc,
-                        style: Theme.of(context).textTheme.bodyLarge,
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
                     if (_showFrontImage) ...[
                       const SizedBox(height: 16),
                       FlashcardImageView(
@@ -83,6 +77,7 @@ class _FlashcardPreviewScreenState extends State<FlashcardPreviewScreen> {
               onPressed: () => setState(() => _revealed = !_revealed),
               child: Text(_revealed ? S.hideDefinition : S.showDefinition),
             ),
+            // 2. Anıqlama (Definition)
             if (_revealed) ...[
               const SizedBox(height: 16),
               Card(
@@ -108,6 +103,44 @@ class _FlashcardPreviewScreenState extends State<FlashcardPreviewScreen> {
                   ),
                 ),
               ),
+            ],
+            // 3. Assotsiaciya (Association) — 3rd in order, collapsible by user
+            if (assoc != null && assoc.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                key: const Key('toggle-association'),
+                onPressed: () => setState(
+                  () => _associationExpanded = !_associationExpanded,
+                ),
+                icon: Icon(
+                  _associationExpanded
+                      ? Icons.expand_less
+                      : Icons.lightbulb_outline,
+                ),
+                label: Text(
+                  _associationExpanded
+                      ? S.hideAssociation
+                      : S.showAssociation,
+                ),
+              ),
+              if (_associationExpanded) ...[
+                const SizedBox(height: 8),
+                Card(
+                  key: const Key('association-card'),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .secondaryContainer
+                      .withValues(alpha: 0.5),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                      assoc,
+                      style: Theme.of(context).textTheme.bodyLarge,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ],
         ),

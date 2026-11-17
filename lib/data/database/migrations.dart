@@ -100,4 +100,8 @@ ALTER TABLE flashcards
     'CREATE INDEX idx_flashcards_status ON flashcards(deck_id, status)',
     'CREATE INDEX idx_review_card_session ON review_history(flashcard_id, session_id)',
   ]),
+  Migration(3, [
+    'ALTER TABLE books ADD COLUMN publication_year INTEGER',
+    'ALTER TABLE books ADD COLUMN image_path TEXT CHECK (image_path IS NULL OR length(trim(image_path)) > 0)',
+  ]),
 ];

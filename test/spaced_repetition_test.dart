@@ -415,7 +415,12 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Verify «Yad boldı» button is visible above the 4 rating buttons
+      // Initially only "Juwaptı kórsetiw" is visible; reveal answer first
+      expect(find.byKey(const Key('mark-mastered-button')), findsNothing);
+      await tester.tap(find.byKey(const Key('study-toggle-definition')));
+      await tester.pumpAndSettle();
+
+      // Verify «Yad boldı» button is now visible above the 4 rating buttons
       expect(find.byKey(const Key('mark-mastered-button')), findsOneWidget);
       expect(find.text(S.markMastered), findsOneWidget);
 

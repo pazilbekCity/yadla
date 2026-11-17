@@ -11,17 +11,24 @@ import 'flashcard_preview_screen.dart';
 import 'strings.dart';
 import 'study_session_screen.dart';
 
-/// Deck screen: shows the card count, lists flashcards in [deck], and lets the
-/// user create, edit, preview, import from Excel `.xlsx`, change status
-/// (`learning` / `mastered` / `suspended`), or delete cards.
+/// Flashcards list screen for either a [Deck] or directly for a [Topic]
+/// (creating/reusing the topic's default deck on demand when adding or
+/// importing cards).
 class DeckScreen extends StatefulWidget {
   const DeckScreen({
     super.key,
-    required this.deck,
+    required Deck this.deck,
     this.pickXlsxFile,
-  });
+  }) : topic = null;
 
-  final Deck deck;
+  const DeckScreen.forTopic({
+    super.key,
+    required Topic this.topic,
+    this.pickXlsxFile,
+  }) : deck = null;
+
+  final Deck? deck;
+  final Topic? topic;
   final XlsxFilePicker? pickXlsxFile;
 
   @override
@@ -31,24 +38,44 @@ class DeckScreen extends StatefulWidget {
 class _DeckScreenState extends State<DeckScreen> {
   Future<List<Flashcard>>? _future;
 
+  String get _screenTitle => widget.topic?.name ?? widget.deck!.name;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _future ??= _load();
   }
 
-  Future<List<Flashcard>> _load() =>
-      AppScope.of(context).flashcards.listByDeck(widget.deck.id);
+  Future<List<Flashcard>> _load() {
+    final scope = AppScope.of(context);
+    final topic = widget.topic;
+    if (topic != null) {
+      return scope.flashcards.listByTopic(topic.id);
+    }
+    return scope.flashcards.listByDeck(widget.deck!.id);
+  }
+
+  Future<String> _resolveTargetDeckId() async {
+    final deck = widget.deck;
+    if (deck != null) return deck.id;
+    final topic = widget.topic!;
+    final defaultDeck = await AppScope.of(context)
+        .decks
+        .getOrCreateDefaultForTopic(topic.id, defaultName: topic.name);
+    return defaultDeck.id;
+  }
 
   void _reload() => setState(() {
         _future = _load();
       });
 
   Future<void> _add() async {
+    final targetDeckId = await _resolveTargetDeckId();
+    if (!mounted) return;
     final saved = await Navigator.push<bool>(
       context,
       MaterialPageRoute<bool>(
-        builder: (_) => FlashcardEditorScreen(deckId: widget.deck.id),
+        builder: (_) => FlashcardEditorScreen(deckId: targetDeckId),
       ),
     );
     if (saved == true && mounted) _reload();
@@ -59,7 +86,7 @@ class _DeckScreenState extends State<DeckScreen> {
       context,
       MaterialPageRoute<bool>(
         builder: (_) =>
-            FlashcardEditorScreen(deckId: widget.deck.id, existing: card),
+            FlashcardEditorScreen(deckId: card.deckId, existing: card),
       ),
     );
     if (saved == true && mounted) _reload();
@@ -75,22 +102,30 @@ class _DeckScreenState extends State<DeckScreen> {
   }
 
   Future<void> _study() async {
+    final topic = widget.topic;
     await Navigator.push<void>(
       context,
       MaterialPageRoute<void>(
-        builder: (_) => StudySessionScreen.forDeck(
-          deckId: widget.deck.id,
-          deckName: widget.deck.name,
-        ),
+        builder: (_) => topic != null
+            ? StudySessionScreen.forTopic(
+                topicId: topic.id,
+                topicName: topic.name,
+              )
+            : StudySessionScreen.forDeck(
+                deckId: widget.deck!.id,
+                deckName: widget.deck!.name,
+              ),
       ),
     );
     if (mounted) _reload();
   }
 
   Future<void> _importExcel() async {
+    final targetDeckId = await _resolveTargetDeckId();
+    if (!mounted) return;
     final imported = await runExcelImportFlow(
       context,
-      deckId: widget.deck.id,
+      deckId: targetDeckId,
       pickFile: widget.pickXlsxFile,
     );
     if (imported && mounted) _reload();
@@ -142,7 +177,7 @@ class _DeckScreenState extends State<DeckScreen> {
     AppScope.languageOf(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.deck.name),
+        title: Text(_screenTitle),
         actions: [
           IconButton(
             key: const Key('import-excel-button'),
@@ -178,7 +213,9 @@ class _DeckScreenState extends State<DeckScreen> {
                           key: const Key('study-deck-button'),
                           onPressed: _study,
                           icon: const Icon(Icons.play_arrow),
-                          label: Text(S.studyDeck),
+                          label: Text(
+                            widget.topic != null ? S.studyTopic : S.studyDeck,
+                          ),
                         ),
                       ],
                     ),

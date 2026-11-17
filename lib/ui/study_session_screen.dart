@@ -27,6 +27,7 @@ class StudyStep {
 
   Flashcard card;
   bool revealed = false;
+  bool associationExpanded = false;
   ReviewRating? rating;
   bool markedMastered = false;
   int? lastCalculatedIntervalDays;
@@ -118,6 +119,11 @@ class StudySessionQueue {
   void toggleReveal() {
     if (isEmpty || isCompleted) return;
     currentViewStep.revealed = !currentViewStep.revealed;
+  }
+
+  void toggleAssociation() {
+    if (isEmpty || isCompleted) return;
+    currentViewStep.associationExpanded = !currentViewStep.associationExpanded;
   }
 
   /// Applies [rating] to the active step. Returns `false` if the step was
@@ -228,6 +234,44 @@ class StudySessionScreen extends StatefulWidget {
         maxRequeuesPerCard: maxRequeuesPerCard,
         loadPrioritizedCards: (db) =>
             db.flashcards.listEligibleBySubject(subjectId, onlyDue: onlyDue),
+      );
+
+  /// Starts a study session for eligible learning cards across all topics and
+  /// decks in [bookId], prioritizing due and new cards.
+  factory StudySessionScreen.forBook({
+    Key? key,
+    required String bookId,
+    required String bookName,
+    Random? random,
+    int maxRequeuesPerCard = kDefaultMaxRequeuesPerCard,
+    bool onlyDue = false,
+  }) =>
+      StudySessionScreen._(
+        key: key,
+        title: bookName,
+        random: random,
+        maxRequeuesPerCard: maxRequeuesPerCard,
+        loadPrioritizedCards: (db) =>
+            db.flashcards.listEligibleByBook(bookId, onlyDue: onlyDue),
+      );
+
+  /// Starts a study session for eligible learning cards across all decks in
+  /// [topicId], prioritizing due and new cards.
+  factory StudySessionScreen.forTopic({
+    Key? key,
+    required String topicId,
+    required String topicName,
+    Random? random,
+    int maxRequeuesPerCard = kDefaultMaxRequeuesPerCard,
+    bool onlyDue = false,
+  }) =>
+      StudySessionScreen._(
+        key: key,
+        title: topicName,
+        random: random,
+        maxRequeuesPerCard: maxRequeuesPerCard,
+        loadPrioritizedCards: (db) =>
+            db.flashcards.listEligibleByTopic(topicId, onlyDue: onlyDue),
       );
 
   final String title;
@@ -500,6 +544,7 @@ class _StudySessionScreenState extends State<StudySessionScreen> {
                   child: ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
+                      // 1. Gilt sóz (Target word)
                       Card(
                         child: Padding(
                           padding: const EdgeInsets.all(20),
@@ -513,15 +558,6 @@ class _StudySessionScreenState extends State<StudySessionScreen> {
                                     Theme.of(context).textTheme.headlineSmall,
                                 textAlign: TextAlign.center,
                               ),
-                              if (assoc != null && assoc.isNotEmpty) ...[
-                                const SizedBox(height: 12),
-                                Text(
-                                  assoc,
-                                  key: const Key('study-association-text'),
-                                  style: Theme.of(context).textTheme.bodyLarge,
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
                               if (calcInterval != null) ...[
                                 const SizedBox(height: 10),
                                 Text(
@@ -542,16 +578,19 @@ class _StudySessionScreenState extends State<StudySessionScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      FilledButton.tonal(
-                        key: const Key('study-toggle-definition'),
-                        onPressed: () => setState(queue.toggleReveal),
-                        child: Text(
-                          step.revealed ? S.hideDefinition : S.showDefinition,
-                        ),
-                      ),
+                      // 2. Anıqlama (Definition) — shown after tapping "Juwaptı kórsetiw"
                       if (step.revealed) ...[
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 12),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton.icon(
+                            key: const Key('study-toggle-definition'),
+                            onPressed: () => setState(queue.toggleReveal),
+                            icon: const Icon(Icons.visibility_off_outlined,
+                                size: 18),
+                            label: Text(S.hideDefinition),
+                          ),
+                        ),
                         Card(
                           key: const Key('study-definition-card'),
                           child: Padding(
@@ -579,6 +618,43 @@ class _StudySessionScreenState extends State<StudySessionScreen> {
                           ),
                         ),
                       ],
+                      // 3. Assotsiaciya (Association) — 3rd in order, collapsible by user
+                      if (assoc != null && assoc.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        OutlinedButton.icon(
+                          key: const Key('study-toggle-association'),
+                          onPressed: () => setState(queue.toggleAssociation),
+                          icon: Icon(
+                            step.associationExpanded
+                                ? Icons.expand_less
+                                : Icons.lightbulb_outline,
+                          ),
+                          label: Text(
+                            step.associationExpanded
+                                ? S.hideAssociation
+                                : S.showAssociation,
+                          ),
+                        ),
+                        if (step.associationExpanded) ...[
+                          const SizedBox(height: 8),
+                          Card(
+                            key: const Key('study-association-card'),
+                            color: Theme.of(context)
+                                .colorScheme
+                                .secondaryContainer
+                                .withValues(alpha: 0.5),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Text(
+                                assoc,
+                                key: const Key('study-association-text'),
+                                style: Theme.of(context).textTheme.bodyLarge,
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ],
                   ),
                 ),
@@ -596,6 +672,39 @@ class _StudySessionScreenState extends State<StudySessionScreen> {
                       key: const Key('study-already-rated'),
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                  ),
+                )
+              else if (!step.revealed)
+                // When only Gilt sóz is open, show "Juwaptı kórsetiw" in place of the bottom rating bar
+                Material(
+                  color: const Color(0xFF1E1E24),
+                  elevation: 8,
+                  child: SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      child: CenteredBody(
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: 48,
+                          child: FilledButton.icon(
+                            key: const Key('study-toggle-definition'),
+                            onPressed: () => setState(queue.toggleReveal),
+                            icon: const Icon(Icons.visibility_outlined),
+                            label: Text(
+                              S.showDefinition,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 )

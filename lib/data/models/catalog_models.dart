@@ -44,6 +44,8 @@ class Book {
     required this.subjectId,
     required this.name,
     this.description,
+    this.publicationYear,
+    this.imagePath,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -52,6 +54,8 @@ class Book {
   final String subjectId;
   final String name;
   final String? description;
+  final int? publicationYear;
+  final String? imagePath;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -60,15 +64,30 @@ class Book {
         subjectId: m['subject_id'] as String,
         name: m['name'] as String,
         description: m['description'] as String?,
+        publicationYear: m['publication_year'] as int?,
+        imagePath: m['image_path'] as String?,
         createdAt: dateFromMs(m['created_at'] as int),
         updatedAt: dateFromMs(m['updated_at'] as int),
       );
 
-  Book copyWith({String? subjectId, String? name, String? description}) => Book(
+  Book copyWith({
+    String? subjectId,
+    String? name,
+    String? description,
+    int? publicationYear,
+    bool clearPublicationYear = false,
+    String? imagePath,
+    bool clearImagePath = false,
+  }) =>
+      Book(
         id: id,
         subjectId: subjectId ?? this.subjectId,
         name: name ?? this.name,
         description: description ?? this.description,
+        publicationYear: clearPublicationYear
+            ? null
+            : (publicationYear ?? this.publicationYear),
+        imagePath: clearImagePath ? null : (imagePath ?? this.imagePath),
         createdAt: createdAt,
         updatedAt: updatedAt,
       );
