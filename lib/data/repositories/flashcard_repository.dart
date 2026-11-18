@@ -5,7 +5,25 @@ import '../models/flashcard.dart';
 import '../services/excel_import_service.dart';
 import 'repository_base.dart';
 
-/// A flashcard paired withwhether it is currently due for review (`true` for
+/// Aggregated flashcard mastery statistics for a catalog item (Subject, Book,
+/// or Topic).
+class MasteryProgress {
+  const MasteryProgress({
+    required this.totalCards,
+    required this.masteredCards,
+  });
+
+  static const zero = MasteryProgress(totalCards: 0, masteredCards: 0);
+
+  final int totalCards;
+  final int masteredCards;
+
+  /// Fraction of cards with `status = 'mastered'` in `0.0 .. 1.0`.
+  double get ratio =>
+      totalCards <= 0 ? 0.0 : (masteredCards / totalCards).clamp(0.0, 1.0);
+}
+
+/// A flashcard paired with whether it is currently due for review (`true` for
 /// brand-new cards and cards whose latest `due_at <= asOf`).
 class PrioritizedFlashcard {
   const PrioritizedFlashcard({
@@ -29,6 +47,7 @@ class FlashcardRepository extends RepositoryBase {
     required String targetText,
     String? associationText,
     String? definitionText,
+    String? pageNumber,
     String? imagePath,
     ImagePlacement imagePlacement = ImagePlacement.front,
     CardStatus status = CardStatus.learning,
@@ -36,12 +55,14 @@ class FlashcardRepository extends RepositoryBase {
       guardDb('Create flashcard', () async {
         final now = nowMs();
         final id = generateId();
+        final page = optionalText(pageNumber);
         await db.insert('flashcards', {
           'id': id,
           'deck_id': deckId,
           'target_text': requireText(targetText, 'Target text'),
           'association_text': optionalText(associationText),
           'definition_text': optionalText(definitionText),
+          'page_number': ?page,
           'image_path': optionalText(imagePath),
           'image_placement': imagePlacement.name,
           'status': status.name,
@@ -311,6 +332,7 @@ ORDER BY
             'target_text': requireText(c.targetText, 'Target text'),
             'association_text': optionalText(c.associationText),
             'definition_text': optionalText(c.definitionText),
+            'page_number': optionalText(c.pageNumber),
             'image_path': optionalText(imagePathOf(c)),
             'image_placement': c.imagePlacement.name,
             'status': c.status.name,
@@ -404,5 +426,130 @@ ORDER BY
             skippedCount: skipped,
           );
         });
+      });
+
+  /// Returns a map of `subjectId -> MasteryProgress` across all subjects.
+  Future<Map<String, MasteryProgress>> progressBySubject() =>
+      guardDb('Get mastery progress by subject', () async {
+        final rows = await db.rawQuery('''
+SELECT
+  b.subject_id AS parent_id,
+  COUNT(f.id) AS total_cards,
+  SUM(CASE WHEN f.status = 'mastered' THEN 1 ELSE 0 END) AS mastered_cards
+FROM flashcards f
+JOIN decks d ON f.deck_id = d.id
+JOIN topics t ON d.topic_id = t.id
+JOIN books b ON t.book_id = b.id
+GROUP BY b.subject_id
+''');
+        return _mapProgressRows(rows);
+      });
+
+  /// Returns a map of `bookId -> MasteryProgress` for all books in [subjectId].
+  Future<Map<String, MasteryProgress>> progressByBook(String subjectId) =>
+      guardDb('Get mastery progress by book', () async {
+        final rows = await db.rawQuery('''
+SELECT
+  t.book_id AS parent_id,
+  COUNT(f.id) AS total_cards,
+  SUM(CASE WHEN f.status = 'mastered' THEN 1 ELSE 0 END) AS mastered_cards
+FROM flashcards f
+JOIN decks d ON f.deck_id = d.id
+JOIN topics t ON d.topic_id = t.id
+JOIN books b ON t.book_id = b.id
+WHERE b.subject_id = ?
+GROUP BY t.book_id
+''', [subjectId]);
+        return _mapProgressRows(rows);
+      });
+
+  /// Returns a map of `topicId -> MasteryProgress` for all topics in [bookId].
+  Future<Map<String, MasteryProgress>> progressByTopic(String bookId) =>
+      guardDb('Get mastery progress by topic', () async {
+        final rows = await db.rawQuery('''
+SELECT
+  d.topic_id AS parent_id,
+  COUNT(f.id) AS total_cards,
+  SUM(CASE WHEN f.status = 'mastered' THEN 1 ELSE 0 END) AS mastered_cards
+FROM flashcards f
+JOIN decks d ON f.deck_id = d.id
+JOIN topics t ON d.topic_id = t.id
+WHERE t.book_id = ?
+GROUP BY d.topic_id
+''', [bookId]);
+        return _mapProgressRows(rows);
+      });
+
+  static Map<String, MasteryProgress> _mapProgressRows(
+    List<Map<String, Object?>> rows,
+  ) {
+    final result = <String, MasteryProgress>{};
+    for (final r in rows) {
+      final id = r['parent_id'] as String?;
+      if (id == null) continue;
+      final total = (r['total_cards'] as int?) ?? 0;
+      final mastered = (r['mastered_cards'] as int?) ?? 0;
+      result[id] = MasteryProgress(
+        totalCards: total,
+        masteredCards: mastered,
+      );
+    }
+    return result;
+  }
+
+  /// Counts all active (`status = 'learning'`) flashcards across the entire
+  /// database that are due for review as of [asOf] (brand-new cards or cards
+  /// whose latest `due_at <= asOf`).
+  Future<int> countDueCards({DateTime? asOf}) =>
+      guardDb('Count due flashcards', () async {
+        final cutoff = asOf == null ? nowMs() : msFromDate(asOf);
+        final rows = await db.rawQuery('''
+SELECT COUNT(f.id) AS due_count
+FROM flashcards f
+LEFT JOIN (
+  SELECT r.flashcard_id, r.due_at
+  FROM review_history r
+  WHERE r.rowid = (
+    SELECT r2.rowid FROM review_history r2
+    WHERE r2.flashcard_id = r.flashcard_id
+    ORDER BY r2.reviewed_at DESC, r2.rowid DESC
+    LIMIT 1
+  )
+) latest ON latest.flashcard_id = f.id
+WHERE f.status = 'learning'
+  AND (latest.due_at IS NULL OR latest.due_at <= ?)
+''', [cutoff]);
+        return (rows.first['due_count'] as int?) ?? 0;
+      });
+
+  /// Lists all active (`status = 'learning'`) flashcards across all subjects
+  /// that are due for review as of [asOf].
+  Future<List<PrioritizedFlashcard>> listAllDueCards({DateTime? asOf}) =>
+      guardDb('List all due flashcards', () async {
+        final cutoff = asOf == null ? nowMs() : msFromDate(asOf);
+        final rows = await db.rawQuery('''
+SELECT
+  f.*,
+  latest.due_at AS last_due_at,
+  latest.interval_days AS last_interval_days
+FROM flashcards f
+LEFT JOIN (
+  SELECT r.flashcard_id, r.due_at, r.interval_days
+  FROM review_history r
+  WHERE r.rowid = (
+    SELECT r2.rowid FROM review_history r2
+    WHERE r2.flashcard_id = r.flashcard_id
+    ORDER BY r2.reviewed_at DESC, r2.rowid DESC
+    LIMIT 1
+  )
+) latest ON latest.flashcard_id = f.id
+WHERE f.status = 'learning'
+  AND (latest.due_at IS NULL OR latest.due_at <= ?)
+ORDER BY
+  COALESCE(latest.due_at, 0),
+  f.created_at,
+  f.id
+''', [cutoff]);
+        return rows.map((r) => _mapPrioritized(r, cutoff)).toList();
       });
 }

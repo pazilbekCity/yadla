@@ -1,12 +1,12 @@
 import 'dart:math';
 
-import 'package:anki_apk/data/database/app_database.dart';
-import 'package:anki_apk/data/models/flashcard.dart';
-import 'package:anki_apk/data/models/review_and_settings.dart';
-import 'package:anki_apk/main.dart';
-import 'package:anki_apk/ui/app_scope.dart';
-import 'package:anki_apk/ui/strings.dart';
-import 'package:anki_apk/ui/study_session_screen.dart';
+import 'package:yadla/data/database/app_database.dart';
+import 'package:yadla/data/models/flashcard.dart';
+import 'package:yadla/data/models/review_and_settings.dart';
+import 'package:yadla/main.dart';
+import 'package:yadla/ui/app_scope.dart';
+import 'package:yadla/ui/strings.dart';
+import 'package:yadla/ui/study_session_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -313,7 +313,7 @@ void main() {
       final t = await db.topics.create(bookId: b.id, name: 'Mexanika');
       await db.decks.create(topicId: t.id, name: 'Bos toplam');
 
-      await tester.pumpWidget(AnkiApp(openDatabase: () async => db));
+      await tester.pumpWidget(YadlaApp(openDatabase: () async => db));
       await tester.pumpAndSettle();
 
       // Enter Subject -> tap Study Subject button

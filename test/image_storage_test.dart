@@ -2,14 +2,14 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:anki_apk/data/database/app_database.dart';
-import 'package:anki_apk/data/models/flashcard.dart';
-import 'package:anki_apk/data/services/image_storage_service.dart';
-import 'package:anki_apk/ui/app_scope.dart';
-import 'package:anki_apk/ui/flashcard_editor_screen.dart';
-import 'package:anki_apk/ui/flashcard_preview_screen.dart';
-import 'package:anki_apk/ui/strings.dart';
-import 'package:anki_apk/ui/study_session_screen.dart';
+import 'package:yadla/data/database/app_database.dart';
+import 'package:yadla/data/models/flashcard.dart';
+import 'package:yadla/data/services/image_storage_service.dart';
+import 'package:yadla/ui/app_scope.dart';
+import 'package:yadla/ui/flashcard_editor_screen.dart';
+import 'package:yadla/ui/flashcard_preview_screen.dart';
+import 'package:yadla/ui/strings.dart';
+import 'package:yadla/ui/study_session_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
@@ -28,7 +28,7 @@ void main() {
   late AppDatabase db;
 
   setUp(() async {
-    tempDir = Directory.systemTemp.createTempSync('anki_apk_img_test_');
+    tempDir = Directory.systemTemp.createTempSync('yadla_img_test_');
     imageStorage = ImageStorageService(getBaseDirectory: () async => tempDir);
     db = await AppDatabase.open(
       path: inMemoryDatabasePath,

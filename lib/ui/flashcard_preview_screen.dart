@@ -92,6 +92,50 @@ class _FlashcardPreviewScreenState extends State<FlashcardPreviewScreen> {
                         style: Theme.of(context).textTheme.bodyLarge,
                         textAlign: TextAlign.center,
                       ),
+                      if (c.pageNumber != null &&
+                          c.pageNumber!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Center(
+                          child: Container(
+                            key: const Key('preview-page-badge'),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .primaryContainer,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.menu_book_outlined,
+                                  size: 14,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onPrimaryContainer,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  S.bookPageBadge(c.pageNumber!.trim()),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .labelMedium
+                                      ?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onPrimaryContainer,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                       if (_showBackImage) ...[
                         const SizedBox(height: 16),
                         FlashcardImageView(

@@ -1,3 +1,3 @@
-# anki_apk
+# Yadla
 
-A new Flutter project.
+Offline-first flashcard learning application.

@@ -4,6 +4,26 @@ import '../data/database/app_database_exception.dart';
 import 'app_scope.dart';
 import 'strings.dart';
 
+/// App-bar button allowing the user to toggle between Day (`ThemeMode.light`)
+/// and Night (`ThemeMode.dark`) visual modes.
+class ThemeModeButton extends StatelessWidget {
+  const ThemeModeButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final mode = AppScope.themeModeOf(context);
+    final isDark = mode == ThemeMode.dark;
+    return IconButton(
+      key: const Key('theme-mode-button'),
+      tooltip: S.toggleThemeMode,
+      icon: Icon(
+        isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+      ),
+      onPressed: () => AppScope.toggleThemeMode(context),
+    );
+  }
+}
+
 /// App-bar menu button allowing the user to switch the interface language
 /// between Karakalpak (`kaa`), Uzbek (`uz`), and Russian (`ru`).
 class LanguageSelectorButton extends StatelessWidget {
@@ -87,6 +107,61 @@ Future<bool> confirmDelete(BuildContext context, String name) async {
             child: Text(S.delete)),
       ],
     ),
+  );
+  return result ?? false;
+}
+
+/// Second-step confirmation shown when a parent catalog item still contains
+/// child records (`DbErrorKind.hasDependents`). Prevents accidental immediate
+/// deletion while allowing the user to delete the entire subtree with a
+/// deliberate second confirmation.
+Future<bool> confirmCascadeDelete(BuildContext context, String name) async {
+  final result = await showDialog<bool>(
+    context: context,
+    builder: (ctx) {
+      final colorScheme = Theme.of(ctx).colorScheme;
+      return AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: colorScheme.error),
+            const SizedBox(width: 10),
+            Expanded(child: Text(S.confirmDelete(name))),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(S.deleteBlocked(name)),
+            const SizedBox(height: 12),
+            Text(
+              S.cascadeDeletePrompt,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              S.deleteIrreversible,
+              style: Theme.of(ctx).textTheme.bodySmall,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(S.cancel),
+          ),
+          FilledButton(
+            key: const Key('confirm-cascade-delete'),
+            style: FilledButton.styleFrom(
+              backgroundColor: colorScheme.error,
+              foregroundColor: colorScheme.onError,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(S.deleteAllWithContents),
+          ),
+        ],
+      );
+    },
   );
   return result ?? false;
 }

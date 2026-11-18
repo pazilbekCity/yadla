@@ -42,10 +42,12 @@ jobs:
       - name: Run full test suite
         run: flutter test
 
-      - name: Build debug APK
-        run: flutter build apk --debug
+      - name: Build compact release APK (arm64)
+        run: |
+          flutter build apk --release --split-per-abi --tree-shake-icons
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk build/app/outputs/flutter-apk/app-debug.apk
 
-      - name: Upload debug APK artifact
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: yadla-debug-apk

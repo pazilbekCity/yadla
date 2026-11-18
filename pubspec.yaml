@@ -1,5 +1,5 @@
-name: anki_apk
-description: "A new Flutter project."
+name: yadla
+description: "Yadla — offline-first flashcard learning application."
 publish_to: 'none'
 version: 0.1.0+1
 

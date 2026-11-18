@@ -303,12 +303,27 @@ class _FlashcardEditorScreenState extends State<FlashcardEditorScreen> {
                   ],
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                child: FilledButton(
-                  key: const Key('card-save'),
-                  onPressed: _busy ? null : _save,
-                  child: Text(S.save),
+              Material(
+                color: Theme.of(context).colorScheme.surface,
+                elevation: 4,
+                child: SafeArea(
+                  top: false,
+                  minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: FilledButton(
+                      key: const Key('card-save'),
+                      onPressed: _busy ? null : _save,
+                      child: Text(
+                        S.save,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],

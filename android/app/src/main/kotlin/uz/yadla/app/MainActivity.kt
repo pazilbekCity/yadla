@@ -1,4 +1,4 @@
-package uz.ankiapk.anki_apk
+package uz.yadla.app
 
 import io.flutter.embedding.android.FlutterActivity
 

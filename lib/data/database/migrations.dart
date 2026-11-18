@@ -104,4 +104,7 @@ ALTER TABLE flashcards
     'ALTER TABLE books ADD COLUMN publication_year INTEGER',
     'ALTER TABLE books ADD COLUMN image_path TEXT CHECK (image_path IS NULL OR length(trim(image_path)) > 0)',
   ]),
+  Migration(4, [
+    'ALTER TABLE flashcards ADD COLUMN page_number TEXT',
+  ]),
 ];

@@ -1,14 +1,14 @@
 import 'dart:io';
 
-import 'package:anki_apk/data/database/app_database.dart';
-import 'package:anki_apk/data/models/flashcard.dart';
-import 'package:anki_apk/main.dart';
-import 'package:anki_apk/ui/app_scope.dart';
-import 'package:anki_apk/ui/deck_screen.dart';
-import 'package:anki_apk/ui/flashcard_editor_screen.dart';
-import 'package:anki_apk/ui/flashcard_preview_screen.dart';
-import 'package:anki_apk/ui/strings.dart';
-import 'package:anki_apk/ui/study_session_screen.dart';
+import 'package:yadla/data/database/app_database.dart';
+import 'package:yadla/data/models/flashcard.dart';
+import 'package:yadla/main.dart';
+import 'package:yadla/ui/app_scope.dart';
+import 'package:yadla/ui/deck_screen.dart';
+import 'package:yadla/ui/flashcard_editor_screen.dart';
+import 'package:yadla/ui/flashcard_preview_screen.dart';
+import 'package:yadla/ui/strings.dart';
+import 'package:yadla/ui/study_session_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
@@ -91,7 +91,7 @@ void main() {
     test('persists interface_language in file database and survives restart',
         () async {
       final tempDir =
-          Directory.systemTemp.createTempSync('anki_apk_l10n_test_');
+          Directory.systemTemp.createTempSync('yadla_l10n_test_');
       try {
         final dbPath = p.join(tempDir.path, 'l10n.db');
         var fileDb = await AppDatabase.open(
@@ -130,7 +130,7 @@ void main() {
     testWidgets(
         'defaults to Karakalpak, switches live to Uzbek and Russian via AppBar selector, persists to DB, and restores on app restart',
         (tester) async {
-      await tester.pumpWidget(AnkiApp(openDatabase: () async => db));
+      await tester.pumpWidget(YadlaApp(openDatabase: () async => db));
       await tester.pumpAndSettle();
 
       // 1. Default is Karakalpak (kaa)
@@ -170,10 +170,10 @@ void main() {
       expect(find.text('Добавить предмет'), findsOneWidget);
       expect(await db.settings.getInterfaceLanguage(), 'ru');
 
-      // 4. Simulate app restart with a new AnkiApp instance sharing the same DB
+      // 4. Simulate app restart with a new YadlaApp instance sharing the same DB
       S.setLanguage(AppLanguage.kaa); // reset in-memory state before restart
       await tester.pumpWidget(
-        AnkiApp(
+        YadlaApp(
           key: UniqueKey(),
           openDatabase: () async => db,
         ),

@@ -37,6 +37,7 @@ class Flashcard {
     required this.targetText,
     this.associationText,
     this.definitionText,
+    this.pageNumber,
     this.imagePath,
     this.imagePlacement = ImagePlacement.front,
     this.status = CardStatus.learning,
@@ -57,6 +58,9 @@ class Flashcard {
   /// Definition or explanation.
   final String? definitionText;
 
+  /// Optional textbook page number (e.g. "16").
+  final String? pageNumber;
+
   /// Optional image reference (a path or file name; import workflow comes later).
   final String? imagePath;
   final ImagePlacement imagePlacement;
@@ -71,6 +75,7 @@ class Flashcard {
         targetText: m['target_text'] as String,
         associationText: m['association_text'] as String?,
         definitionText: m['definition_text'] as String?,
+        pageNumber: m['page_number'] as String?,
         imagePath: m['image_path'] as String?,
         imagePlacement: ImagePlacement.parse(m['image_placement'] as String),
         status: m['status'] == null
@@ -91,6 +96,8 @@ class Flashcard {
     bool clearAssociation = false,
     String? definitionText,
     bool clearDefinition = false,
+    String? pageNumber,
+    bool clearPageNumber = false,
     String? imagePath,
     bool clearImage = false,
     ImagePlacement? imagePlacement,
@@ -105,6 +112,8 @@ class Flashcard {
             clearAssociation ? null : (associationText ?? this.associationText),
         definitionText:
             clearDefinition ? null : (definitionText ?? this.definitionText),
+        pageNumber:
+            clearPageNumber ? null : (pageNumber ?? this.pageNumber),
         imagePath: clearImage ? null : (imagePath ?? this.imagePath),
         imagePlacement: imagePlacement ?? this.imagePlacement,
         status: status ?? this.status,

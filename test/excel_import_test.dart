@@ -1,13 +1,13 @@
 import 'dart:typed_data';
 
-import 'package:anki_apk/data/database/app_database.dart';
-import 'package:anki_apk/data/models/catalog_models.dart';
-import 'package:anki_apk/data/models/review_and_settings.dart';
-import 'package:anki_apk/data/services/excel_import_service.dart';
-import 'package:anki_apk/ui/app_scope.dart';
-import 'package:anki_apk/ui/deck_screen.dart';
-import 'package:anki_apk/ui/excel_import_dialog.dart';
-import 'package:anki_apk/ui/strings.dart';
+import 'package:yadla/data/database/app_database.dart';
+import 'package:yadla/data/models/catalog_models.dart';
+import 'package:yadla/data/models/review_and_settings.dart';
+import 'package:yadla/data/services/excel_import_service.dart';
+import 'package:yadla/ui/app_scope.dart';
+import 'package:yadla/ui/deck_screen.dart';
+import 'package:yadla/ui/excel_import_dialog.dart';
+import 'package:yadla/ui/strings.dart';
 import 'package:excel/excel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

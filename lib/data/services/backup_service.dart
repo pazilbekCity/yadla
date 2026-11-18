@@ -628,6 +628,7 @@ class BackupService {
       final targetText = _nonEmptyString(m['target_text']);
       final assoc = m['association_text'];
       final def = m['definition_text'];
+      final pageNum = m['page_number'];
       final imgPath = m['image_path'];
       final imgAssetKey = m['image_asset_key'];
       final placementStr = m['image_placement'] ?? 'front';
@@ -641,6 +642,7 @@ class BackupService {
           targetText == null ||
           (assoc != null && assoc is! String) ||
           (def != null && def is! String) ||
+          (pageNum != null && pageNum is! String) ||
           (imgPath != null && _nonEmptyString(imgPath) == null) ||
           (imgAssetKey != null && imgAssetKey is! String) ||
           placementStr is! String ||
@@ -696,6 +698,7 @@ class BackupService {
         'target_text': targetText,
         'association_text': _nonEmptyString(assoc),
         'definition_text': _nonEmptyString(def),
+        'page_number': _nonEmptyString(pageNum),
         'image_path': _nonEmptyString(imgPath),
         'image_placement': placementStr,
         'status': statusStr,

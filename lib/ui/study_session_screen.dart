@@ -274,6 +274,22 @@ class StudySessionScreen extends StatefulWidget {
             db.flashcards.listEligibleByTopic(topicId, onlyDue: onlyDue),
       );
 
+  /// Starts a study session for all currently due learning cards across all
+  /// subjects in the database.
+  factory StudySessionScreen.forAllDue({
+    Key? key,
+    required String title,
+    Random? random,
+    int maxRequeuesPerCard = kDefaultMaxRequeuesPerCard,
+  }) =>
+      StudySessionScreen._(
+        key: key,
+        title: title,
+        random: random,
+        maxRequeuesPerCard: maxRequeuesPerCard,
+        loadPrioritizedCards: (db) => db.flashcards.listAllDueCards(),
+      );
+
   final String title;
   final Future<List<PrioritizedFlashcard>> Function(AppDatabase db)
       loadPrioritizedCards;
@@ -606,6 +622,52 @@ class _StudySessionScreenState extends State<StudySessionScreen> {
                                   style: Theme.of(context).textTheme.bodyLarge,
                                   textAlign: TextAlign.center,
                                 ),
+                                if (card.pageNumber != null &&
+                                    card.pageNumber!.trim().isNotEmpty) ...[
+                                  const SizedBox(height: 12),
+                                  Center(
+                                    child: Container(
+                                      key: const Key('study-page-badge'),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primaryContainer,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.menu_book_outlined,
+                                            size: 14,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .onPrimaryContainer,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            S.bookPageBadge(
+                                              card.pageNumber!.trim(),
+                                            ),
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .labelMedium
+                                                ?.copyWith(
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .onPrimaryContainer,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
                                 if (showBackImage) ...[
                                   const SizedBox(height: 16),
                                   FlashcardImageView(
@@ -677,30 +739,31 @@ class _StudySessionScreenState extends State<StudySessionScreen> {
                 )
               else if (!step.revealed)
                 // When only Gilt sóz is open, show "Juwaptı kórsetiw" in place of the bottom rating bar
-                Material(
-                  color: const Color(0xFF1E1E24),
-                  elevation: 8,
+                Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    border: Border(
+                      top: BorderSide(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
+                    ),
+                  ),
                   child: SafeArea(
                     top: false,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      child: CenteredBody(
-                        child: SizedBox(
-                          width: double.infinity,
-                          height: 48,
-                          child: FilledButton.icon(
-                            key: const Key('study-toggle-definition'),
-                            onPressed: () => setState(queue.toggleReveal),
-                            icon: const Icon(Icons.visibility_outlined),
-                            label: Text(
-                              S.showDefinition,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
+                    minimum: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+                    child: CenteredBody(
+                      child: SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: FilledButton.icon(
+                          key: const Key('study-toggle-definition'),
+                          onPressed: () => setState(queue.toggleReveal),
+                          icon: const Icon(Icons.visibility_outlined),
+                          label: Text(
+                            S.showDefinition,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
@@ -710,27 +773,35 @@ class _StudySessionScreenState extends State<StudySessionScreen> {
                 )
               else ...[
                 // Separate «Yad boldı» control above the four rating buttons
-                Material(
-                  color: const Color(0xFF1E1E24),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                    child: CenteredBody(
-                      child: OutlinedButton.icon(
-                        key: const Key('mark-mastered-button'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFFFFD54F),
-                          side: const BorderSide(color: Color(0xFFFFD54F)),
-                        ),
-                        onPressed:
-                            canActOnStep ? () => _markMastered(queue) : null,
-                        icon: const Icon(Icons.workspace_premium_outlined,
-                            size: 18),
-                        label: Text(S.markMastered),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    border: Border(
+                      top: BorderSide(
+                        color: Theme.of(context).colorScheme.outlineVariant,
                       ),
                     ),
                   ),
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                  child: CenteredBody(
+                    child: OutlinedButton.icon(
+                      key: const Key('mark-mastered-button'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor:
+                            Theme.of(context).colorScheme.primary,
+                        side: BorderSide(
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                      ),
+                      onPressed:
+                          canActOnStep ? () => _markMastered(queue) : null,
+                      icon: const Icon(Icons.workspace_premium_outlined,
+                          size: 18),
+                      label: Text(S.markMastered),
+                    ),
+                  ),
                 ),
-                _AnkiRatingBar(
+                _StudyRatingBar(
                   enabled: canActOnStep,
                   onRate: (r) => _submitRating(queue, r),
                 ),
@@ -743,10 +814,10 @@ class _StudySessionScreenState extends State<StudySessionScreen> {
   }
 }
 
-/// Bottom-aligned four-button rating bar styled after Anki's mobile layout:
-/// compact dark bar with interval captions above bold contrasting rating labels.
-class _AnkiRatingBar extends StatelessWidget {
-  const _AnkiRatingBar({
+/// Bottom-aligned four-button rating bar for mobile study sessions:
+/// uses calm, muted, adult-friendly tones that adapt to Day and Night modes.
+class _StudyRatingBar extends StatelessWidget {
+  const _StudyRatingBar({
     required this.enabled,
     required this.onRate,
   });
@@ -756,57 +827,64 @@ class _AnkiRatingBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = Theme.of(context).colorScheme.surface;
     return Material(
-      color: const Color(0xFF1E1E24),
-      elevation: 8,
+      color: surfaceColor,
       child: SafeArea(
         top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: CenteredBody(
-            child: Row(
-              children: [
-                _RatingButton(
-                  buttonKey: const Key('rate-again'),
-                  intervalText: S.intervalAgain,
-                  labelText: S.rateAgain,
-                  backgroundColor: const Color(0xFF3A2326),
-                  accentColor: const Color(0xFFFF6B6B),
-                  enabled: enabled,
-                  onTap: () => onRate(ReviewRating.again),
-                ),
-                const SizedBox(width: 6),
-                _RatingButton(
-                  buttonKey: const Key('rate-hard'),
-                  intervalText: S.intervalHard,
-                  labelText: S.rateHard,
-                  backgroundColor: const Color(0xFF383024),
-                  accentColor: const Color(0xFFFFB74D),
-                  enabled: enabled,
-                  onTap: () => onRate(ReviewRating.hard),
-                ),
-                const SizedBox(width: 6),
-                _RatingButton(
-                  buttonKey: const Key('rate-good'),
-                  intervalText: S.intervalGood,
-                  labelText: S.rateGood,
-                  backgroundColor: const Color(0xFF21372A),
-                  accentColor: const Color(0xFF69F0AE),
-                  enabled: enabled,
-                  onTap: () => onRate(ReviewRating.good),
-                ),
-                const SizedBox(width: 6),
-                _RatingButton(
-                  buttonKey: const Key('rate-easy'),
-                  intervalText: S.intervalEasy,
-                  labelText: S.rateEasy,
-                  backgroundColor: const Color(0xFF213242),
-                  accentColor: const Color(0xFF64B5F6),
-                  enabled: enabled,
-                  onTap: () => onRate(ReviewRating.easy),
-                ),
-              ],
-            ),
+        minimum: const EdgeInsets.fromLTRB(10, 8, 10, 12),
+        child: CenteredBody(
+          child: Row(
+            children: [
+              _RatingButton(
+                buttonKey: const Key('rate-again'),
+                intervalText: S.intervalAgain,
+                labelText: S.rateAgain,
+                backgroundColor:
+                    isDark ? const Color(0xFF332225) : const Color(0xFFF6E9E9),
+                accentColor:
+                    isDark ? const Color(0xFFD98A8A) : const Color(0xFF8C3B3B),
+                enabled: enabled,
+                onTap: () => onRate(ReviewRating.again),
+              ),
+              const SizedBox(width: 6),
+              _RatingButton(
+                buttonKey: const Key('rate-hard'),
+                intervalText: S.intervalHard,
+                labelText: S.rateHard,
+                backgroundColor:
+                    isDark ? const Color(0xFF332B21) : const Color(0xFFF6EFE6),
+                accentColor:
+                    isDark ? const Color(0xFFD4AC7D) : const Color(0xFF855A2D),
+                enabled: enabled,
+                onTap: () => onRate(ReviewRating.hard),
+              ),
+              const SizedBox(width: 6),
+              _RatingButton(
+                buttonKey: const Key('rate-good'),
+                intervalText: S.intervalGood,
+                labelText: S.rateGood,
+                backgroundColor:
+                    isDark ? const Color(0xFF20322A) : const Color(0xFFE8F2EE),
+                accentColor:
+                    isDark ? const Color(0xFF7BC4A8) : const Color(0xFF2E6B54),
+                enabled: enabled,
+                onTap: () => onRate(ReviewRating.good),
+              ),
+              const SizedBox(width: 6),
+              _RatingButton(
+                buttonKey: const Key('rate-easy'),
+                intervalText: S.intervalEasy,
+                labelText: S.rateEasy,
+                backgroundColor:
+                    isDark ? const Color(0xFF202E3C) : const Color(0xFFE8EFF6),
+                accentColor:
+                    isDark ? const Color(0xFF88B4DC) : const Color(0xFF2F5B82),
+                enabled: enabled,
+                onTap: () => onRate(ReviewRating.easy),
+              ),
+            ],
           ),
         ),
       ),

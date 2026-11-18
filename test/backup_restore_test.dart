@@ -2,16 +2,16 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:anki_apk/data/database/app_database.dart';
-import 'package:anki_apk/data/models/flashcard.dart';
-import 'package:anki_apk/data/models/review_and_settings.dart';
-import 'package:anki_apk/data/repositories/backup_repository.dart';
-import 'package:anki_apk/data/services/backup_service.dart';
-import 'package:anki_apk/data/services/image_storage_service.dart';
-import 'package:anki_apk/ui/app_scope.dart';
-import 'package:anki_apk/ui/backup_dialogs.dart';
-import 'package:anki_apk/ui/catalog_screens.dart';
-import 'package:anki_apk/ui/strings.dart';
+import 'package:yadla/data/database/app_database.dart';
+import 'package:yadla/data/models/flashcard.dart';
+import 'package:yadla/data/models/review_and_settings.dart';
+import 'package:yadla/data/repositories/backup_repository.dart';
+import 'package:yadla/data/services/backup_service.dart';
+import 'package:yadla/data/services/image_storage_service.dart';
+import 'package:yadla/ui/app_scope.dart';
+import 'package:yadla/ui/backup_dialogs.dart';
+import 'package:yadla/ui/catalog_screens.dart';
+import 'package:yadla/ui/strings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -33,8 +33,8 @@ void main() {
 
   setUp(() async {
     S.setLanguage(AppLanguage.kaa);
-    deviceADir = Directory.systemTemp.createTempSync('anki_backup_devA_');
-    deviceBDir = Directory.systemTemp.createTempSync('anki_backup_devB_');
+    deviceADir = Directory.systemTemp.createTempSync('yadla_backup_devA_');
+    deviceBDir = Directory.systemTemp.createTempSync('yadla_backup_devB_');
     imageStorageA = ImageStorageService(getBaseDirectory: () async => deviceADir);
     imageStorageB = ImageStorageService(getBaseDirectory: () async => deviceBDir);
     backupServiceA = BackupService(imageStorage: imageStorageA);

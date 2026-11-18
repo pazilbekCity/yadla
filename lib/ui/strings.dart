@@ -64,6 +64,12 @@ class S {
         ru: 'Выбрать язык',
       );
 
+  static String get toggleThemeMode => _pick(
+        kaa: 'Kún / Tún rejimi',
+        uz: 'Kun / Tun rejimi',
+        ru: 'Дневной / Ночной режим',
+      );
+
   static String get add => _pick(
         kaa: 'Qosıw',
         uz: 'Qoʻshish',
@@ -113,7 +119,7 @@ class S {
       );
 
   static String get description => _pick(
-        kaa: 'Sıpatlama (ixtiyariy)',
+        kaa: 'Sıpatlama (ıqtıyarlı)',
         uz: 'Tavsif (ixtiyoriy)',
         ru: 'Описание (необязательно)',
       );
@@ -149,6 +155,18 @@ class S {
             'Avval ichidagi elementlarni oʻchiring.',
         ru: '«$name» не удалено: внутри есть вложенные данные. '
             'Сначала удалите вложенные элементы.',
+      );
+
+  static String get cascadeDeletePrompt => _pick(
+        kaa: 'Yamasa onı ishindegi barlıq kitap, tema hám kartochkaları menen birge tolıq óshiresiz be?',
+        uz: 'Yoki uni ichidagi barcha kitob, mavzu va kartochkalari bilan birga toʻliq oʻchirasizmi?',
+        ru: 'Или удалить полностью вместе со всеми книгами, темами и карточками внутри?',
+      );
+
+  static String get deleteAllWithContents => _pick(
+        kaa: 'Ishindegileri menen óshiriw',
+        uz: 'Ichidagilari bilan oʻchirish',
+        ru: 'Удалить со всем содержимым',
       );
 
   // Database errors
@@ -239,7 +257,7 @@ class S {
       );
 
   static String get bookYear => _pick(
-        kaa: 'Kitap jılı (ixtiyariy)',
+        kaa: 'Kitap jılı (ıqtıyarlı)',
         uz: 'Kitob yili (ixtiyoriy)',
         ru: 'Год издания (необязательно)',
       );
@@ -257,7 +275,7 @@ class S {
       );
 
   static String get bookCoverImage => _pick(
-        kaa: 'Kitap súwreti (ixtiyariy)',
+        kaa: 'Kitap súwreti (ıqtıyarlı)',
         uz: 'Kitob rasmi (ixtiyoriy)',
         ru: 'Обложка книги (необязательно)',
       );
@@ -331,11 +349,29 @@ class S {
         ru: 'Просмотр',
       );
 
+  static String get searchCards => _pick(
+        kaa: 'Kartochkalardı izlew',
+        uz: 'Kartochkalarni qidirish',
+        ru: 'Поиск карточек',
+      );
+
+  static String get searchByTargetHint => _pick(
+        kaa: 'Gilt sóz boyınsha izlew...',
+        uz: 'Kalit soʻz boʻyicha qidirish...',
+        ru: 'Поиск по ключевому слову...',
+      );
+
+  static String get searchNoResults => _pick(
+        kaa: 'Heshqanday kartochka tabılmadı.',
+        uz: 'Hech qanday kartochka topilmadi.',
+        ru: 'Карточки не найдены.',
+      );
+
   // Flashcard editor
   static String get fieldTarget => _pick(
-        kaa: 'Maqset sóz yamasa túsinik',
-        uz: 'Maqsadli soʻz yoki tushuncha',
-        ru: 'Целевое слово или понятие',
+        kaa: 'Gilt sóz yaki atama',
+        uz: 'Kalit soʻz yoki atama',
+        ru: 'Ключевое слово или термин',
       );
 
   static String get fieldAssociation => _pick(
@@ -351,7 +387,7 @@ class S {
       );
 
   static String get fieldImage => _pick(
-        kaa: 'Súwret siltemesi (ixtiyariy)',
+        kaa: 'Súwret siltemesi (ıqtıyarlı)',
         uz: 'Rasm havolasi (ixtiyoriy)',
         ru: 'Путь к изображению (необязательно)',
       );
@@ -381,9 +417,9 @@ class S {
       );
 
   static String get targetRequired => _pick(
-        kaa: 'Maqset sóz yamasa túsinikti kiritiń.',
-        uz: 'Maqsadli soʻz yoki tushunchani kiriting.',
-        ru: 'Введите целевое слово или понятие.',
+        kaa: 'Gilt sóz yaki atamanı kiritiń.',
+        uz: 'Kalit soʻz yoki atamani kiriting.',
+        ru: 'Введите ключевое слово или термин.',
       );
 
   // Preview
@@ -421,6 +457,12 @@ class S {
         kaa: 'Anıqlama kiritilmegen.',
         uz: 'Taʼrif kiritilmagan.',
         ru: 'Определение не указано.',
+      );
+
+  static String bookPageBadge(String page) => _pick(
+        kaa: '$page-bet',
+        uz: '$page-bet',
+        ru: 'Стр. $page',
       );
 
   static String get imagePlaceholder => _pick(
@@ -521,7 +563,7 @@ class S {
         ru: 'Оценено на этом шаге: $ratingLabel',
       );
 
-  // Anki-style 4 rating buttons & initial UI interval labels
+  // 4 rating buttons & initial UI interval labels
   static String get rateAgain => _pick(
         kaa: 'Qayta',
         uz: 'Qayta',
@@ -933,9 +975,9 @@ class S {
       );
 
   static String get addSubjectFromDatabase => _pick(
-        kaa: '1. Bazadan bar kitaplardı júklep alıw',
-        uz: '1. Bazadan mavjud kitoblarni yuklab olish',
-        ru: '1. Скачать готовые книги из базы',
+        kaa: 'Bazadan bar kitaplardı júklep alıw',
+        uz: 'Bazadan mavjud kitoblarni yuklab olish',
+        ru: 'Скачать готовые книги из базы',
       );
 
   static String get addSubjectFromDatabaseSub => _pick(
@@ -945,9 +987,9 @@ class S {
       );
 
   static String get addSubjectFromScratch => _pick(
-        kaa: '2. 0-den ózi jaratıw',
-        uz: '2. 0 dan oʻzi yaratish',
-        ru: '2. Создать с нуля самостоятельно',
+        kaa: 'Jańa pán jaratıw',
+        uz: 'Yangi fan yaratish',
+        ru: 'Создать новый предмет',
       );
 
   static String get addSubjectFromScratchSub => _pick(
@@ -960,6 +1002,12 @@ class S {
         kaa: 'Bazadan pándi tańlań',
         uz: 'Bazadan fanni tanlang',
         ru: 'Выберите предмет из базы',
+      );
+
+  static String get syncFromDatabase => _pick(
+        kaa: 'Bazadan jańalaw',
+        uz: 'Bazadan yangilash',
+        ru: 'Обновить из базы',
       );
 
   static String get downloadingPresetDatabase => _pick(
@@ -987,5 +1035,81 @@ class S {
         kaa: 'Bazadan júklewde qátelik júz berdi. Internet baylanısın tekseriń.',
         uz: 'Bazadan yuklashda xatolik yuz berdi. Internet aloqasini tekshiring.',
         ru: 'Ошибка при загрузке из базы. Проверьте подключение к интернету.',
+      );
+
+  static String get addByGoogleSheetsUrl => _pick(
+        kaa: 'Google Sheets siltemesi arqalı qosıw',
+        uz: 'Google Sheets havolasi orqali qoʻshish',
+        ru: 'Добавить по ссылке Google Sheets',
+      );
+
+  static String get googleSheetsUrlLabel => _pick(
+        kaa: 'Google Sheets siltemesi (URL)',
+        uz: 'Google Sheets havolasi (URL)',
+        ru: 'Ссылка на Google Sheets (URL)',
+      );
+
+  static String get googleSheetsUrlInvalid => _pick(
+        kaa: 'Google Sheets siltemesin durıs kiritiń.',
+        uz: 'Google Sheets havolasini toʻgʻri kiriting.',
+        ru: 'Введите корректную ссылку на Google Sheets.',
+      );
+
+  static String get downloadFromSheetUrl => _pick(
+        kaa: 'Siltemeden júklep alıw',
+        uz: 'Havoladan yuklab olish',
+        ru: 'Скачать по ссылке',
+      );
+
+  // Daily retention (Streak & Due Today) and Promo / Announcement banner
+  static String streakDaysBadge(int days) => _pick(
+        kaa: '$days kún úzliksiz',
+        uz: '$days kun uzluksiz',
+        ru: '$days дн. подряд',
+      );
+
+  static String dueTodayBadge(int count) => _pick(
+        kaa: 'Búgin qaytalaw: $count',
+        uz: 'Bugun takrorlash: $count',
+        ru: 'На сегодня: $count',
+      );
+
+  static String get promoBadgeLabel => _pick(
+        kaa: 'Daǵaza',
+        uz: 'Eʼlon',
+        ru: 'Объявление',
+      );
+
+  // APK 20-day expiration gate
+  static const adminTelegramUrl = 'https://t.me/Xayratdin';
+
+  static String get expiredVersionTitle => _pick(
+        kaa: 'Eskirgen versiya!',
+        uz: 'Eskirgan versiya!',
+        ru: 'Устаревшая версия!',
+      );
+
+  static String get expiredVersionBody => _pick(
+        kaa: 'Jańalaw ushın adminge xabarlasıń.',
+        uz: 'Yangilash uchun adminga murojaat qiling.',
+        ru: 'Для обновления свяжитесь с администратором.',
+      );
+
+  static String get expiredVersionAdminLine =>
+      'Admin: $adminTelegramUrl';
+
+  static String get expiredVersionFullMessage =>
+      '$expiredVersionTitle\n$expiredVersionBody\n$expiredVersionAdminLine';
+
+  static String get copyAdminLink => _pick(
+        kaa: 'Siltemeni kóshirip alıw',
+        uz: 'Havolani nusxalash',
+        ru: 'Скопировать ссылку',
+      );
+
+  static String get adminLinkCopied => _pick(
+        kaa: 'Silteme kóshirildi: $adminTelegramUrl',
+        uz: 'Havola nusxalandi: $adminTelegramUrl',
+        ru: 'Ссылка скопирована: $adminTelegramUrl',
       );
 }

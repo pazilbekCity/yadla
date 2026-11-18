@@ -26,7 +26,7 @@ class AppDatabase {
         settings = AppSettingsRepository(_db, clock),
         backups = BackupRepository(_db, clock);
 
-  static const fileName = 'anki_apk.db';
+  static const fileName = 'yadla.db';
 
   final Database _db;
   final int schemaVersion;

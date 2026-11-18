@@ -1,0 +1,6 @@
+target_text,association_text,definition_text,image_filename
+CSS,qaydem,Cascade Style Sheets-CSS veb berler maketi h?m k?rinisin kestelerden paydalanbastan basqar?w imkan?n beredi,
+HTML,qaydem,Hyper Text Markup Language-veb betlerdi? maketi h?m dizayn?n HTML tegleri j?rdeminde basqara alas?z.Bul us?l tay?n shablonlar menen islewge qara?anda qolayl? esaplanad?.,
+CMS,qaydem,"CMS jardeminde veb sayt jaratsa?iz, ol procestegi hamme narseni sizi? orni?iz?a basqaradi. Siz veb saytti? harbir beti ush?n dizayn, maket, navigaciya ham tagi basqalardi takiraran qaliplestirip otirmaysiz. Daslep stil, maket ham navigaciyani ta?laysiz. Olard?? veb betler boylap qadagalawi CMS tarepinen basqanladi. Sizden tek veb beti?izdi kontent penen toltir?w talap etiledi.",
+"<tr>, </tr>",qaydem,keste qatarlarin anlatadi,
+"<th>, </th>",qaydem,"keste bas betlerin anlatadi. Kesteni? barliq bas betleri tekstti avtomatikaliq turde orayga tegislew ham qalinlastinw us?n formatlanadi, onin ushm qosimsha teglerdi qosiw shart emes.",

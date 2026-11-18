@@ -1,11 +1,11 @@
 import 'dart:io';
 
-import 'package:anki_apk/data/database/app_database.dart';
-import 'package:anki_apk/data/database/app_database_exception.dart';
-import 'package:anki_apk/data/database/migrations.dart';
-import 'package:anki_apk/data/models/flashcard.dart';
-import 'package:anki_apk/data/models/review_and_settings.dart';
-import 'package:anki_apk/data/repositories/app_settings_repository.dart';
+import 'package:yadla/data/database/app_database.dart';
+import 'package:yadla/data/database/app_database_exception.dart';
+import 'package:yadla/data/database/migrations.dart';
+import 'package:yadla/data/models/flashcard.dart';
+import 'package:yadla/data/models/review_and_settings.dart';
+import 'package:yadla/data/repositories/app_settings_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -288,7 +288,7 @@ void main() {
     late String path;
 
     setUp(() {
-      dir = Directory.systemTemp.createTempSync('anki_apk_test_');
+      dir = Directory.systemTemp.createTempSync('yadla_test_');
       path = p.join(dir.path, 'test.db');
     });
     tearDown(() => dir.deleteSync(recursive: true));

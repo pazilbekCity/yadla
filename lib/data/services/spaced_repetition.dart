@@ -33,7 +33,7 @@ class ScheduleResult {
   final double easeFactor;
 }
 
-/// Deterministic SM-2 / Anki-inspired spaced-repetition scheduler.
+/// Deterministic SM-2 spaced-repetition scheduler.
 ///
 /// ### Initial & subsequent interval rules:
 /// - **New or lapsed card (`previous == null` or `previous.intervalDays == 0`):**

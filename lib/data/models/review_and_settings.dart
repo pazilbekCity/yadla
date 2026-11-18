@@ -1,6 +1,6 @@
 import 'catalog_models.dart';
 
-/// Recall rating, mirroring Anki's four buttons.
+/// Recall rating for the four study buttons.
 enum ReviewRating {
   again(1),
   hard(2),

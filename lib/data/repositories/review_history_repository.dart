@@ -183,4 +183,59 @@ class ReviewHistoryRepository extends RepositoryBase {
         );
         return rows.isEmpty ? null : ReviewEntry.fromMap(rows.first);
       });
+
+  /// Calculates the user's current consecutive daily study streak as of [asOf]
+  /// (defaults to [clock]). Counts distinct UTC calendar days on which at least
+  /// one review was recorded or a card was marked mastered.
+  Future<int> calculateStudyStreakDays({DateTime? asOf}) =>
+      guardDb('Calculate study streak days', () async {
+        final reviewRows = await db.rawQuery(
+          'SELECT reviewed_at AS ts FROM review_history',
+        );
+        final masteredRows = await db.rawQuery(
+          "SELECT status_changed_at AS ts FROM flashcards WHERE status = 'mastered' AND status_changed_at IS NOT NULL",
+        );
+
+        final activeDayKeys = <int>{};
+        void addTimestamp(int? ms) {
+          if (ms == null) return;
+          final dt = DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true);
+          final dayEpoch = DateTime.utc(dt.year, dt.month, dt.day)
+                  .millisecondsSinceEpoch ~/
+              Duration.millisecondsPerDay;
+          activeDayKeys.add(dayEpoch);
+        }
+
+        for (final r in reviewRows) {
+          addTimestamp(r['ts'] as int?);
+        }
+        for (final r in masteredRows) {
+          addTimestamp(r['ts'] as int?);
+        }
+
+        if (activeDayKeys.isEmpty) return 0;
+
+        final nowUtc = (asOf ?? clock()).toUtc();
+        final todayKey =
+            DateTime.utc(nowUtc.year, nowUtc.month, nowUtc.day)
+                    .millisecondsSinceEpoch ~/
+                Duration.millisecondsPerDay;
+
+        var cursor = todayKey;
+        if (!activeDayKeys.contains(cursor)) {
+          // If the user hasn't studied yet today, keep yesterday's streak alive.
+          if (activeDayKeys.contains(cursor - 1)) {
+            cursor = cursor - 1;
+          } else {
+            return 0;
+          }
+        }
+
+        var streak = 0;
+        while (activeDayKeys.contains(cursor)) {
+          streak++;
+          cursor--;
+        }
+        return streak;
+      });
 }

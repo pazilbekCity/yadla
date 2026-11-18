@@ -1,14 +1,14 @@
 import 'dart:io';
 import 'dart:math';
 
-import 'package:anki_apk/data/database/app_database.dart';
-import 'package:anki_apk/data/models/flashcard.dart';
-import 'package:anki_apk/data/models/review_and_settings.dart';
-import 'package:anki_apk/data/services/spaced_repetition.dart';
-import 'package:anki_apk/ui/app_scope.dart';
-import 'package:anki_apk/ui/deck_screen.dart';
-import 'package:anki_apk/ui/strings.dart';
-import 'package:anki_apk/ui/study_session_screen.dart';
+import 'package:yadla/data/database/app_database.dart';
+import 'package:yadla/data/models/flashcard.dart';
+import 'package:yadla/data/models/review_and_settings.dart';
+import 'package:yadla/data/services/spaced_repetition.dart';
+import 'package:yadla/ui/app_scope.dart';
+import 'package:yadla/ui/deck_screen.dart';
+import 'package:yadla/ui/strings.dart';
+import 'package:yadla/ui/study_session_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
@@ -460,7 +460,7 @@ void main() {
 
     test('mastery and consecutive session history survive closing and reopening DB',
         () async {
-      final dir = Directory.systemTemp.createTempSync('anki_apk_sr_');
+      final dir = Directory.systemTemp.createTempSync('yadla_sr_');
       addTearDown(() => dir.deleteSync(recursive: true));
       final dbPath = p.join(dir.path, 'sr.db');
 

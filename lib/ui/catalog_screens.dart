@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/database/app_database_exception.dart';
 import '../data/models/catalog_models.dart';
+import '../data/repositories/flashcard_repository.dart';
 import '../data/services/backup_service.dart';
 import '../data/services/image_storage_service.dart';
 import '../data/services/preset_catalog_service.dart';
@@ -33,16 +34,72 @@ class SubjectsScreen extends StatefulWidget {
   State<SubjectsScreen> createState() => _SubjectsScreenState();
 }
 
+class _CatalogPayload<T> {
+  const _CatalogPayload(this.items, this.progress);
+
+  final List<T> items;
+  final Map<String, MasteryProgress> progress;
+}
+
+class _HomeSubjectsPayload {
+  const _HomeSubjectsPayload({
+    required this.items,
+    required this.progress,
+    required this.streakDays,
+    required this.dueTodayCount,
+    this.promoBanner,
+  });
+
+  final List<Subject> items;
+  final Map<String, MasteryProgress> progress;
+  final int streakDays;
+  final int dueTodayCount;
+  final PromoBannerData? promoBanner;
+}
+
 class _SubjectsScreenState extends State<SubjectsScreen> {
-  Future<List<Subject>>? _future;
+  Future<_HomeSubjectsPayload>? _future;
+  PromoBannerData? _livePromoBanner;
+  bool _promoDismissed = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _future ??= _load();
+    if (_future == null) {
+      _future = _load();
+      _refreshPromoBannerInBackground();
+    }
   }
 
-  Future<List<Subject>> _load() => AppScope.of(context).subjects.getAll();
+  Future<_HomeSubjectsPayload> _load() async {
+    final db = AppScope.of(context);
+    final items = await db.subjects.getAll();
+    final progress = await db.flashcards.progressBySubject();
+    final streakDays = await db.reviews.calculateStudyStreakDays();
+    final dueTodayCount = await db.flashcards.countDueCards();
+    final cachedPromo = await PresetCatalogService.loadCachedPromoBanner(db);
+    return _HomeSubjectsPayload(
+      items: items,
+      progress: progress,
+      streakDays: streakDays,
+      dueTodayCount: dueTodayCount,
+      promoBanner: _livePromoBanner ?? cachedPromo,
+    );
+  }
+
+  Future<void> _refreshPromoBannerInBackground() async {
+    final db = AppScope.of(context);
+    final fetched =
+        await widget.presetCatalogService.fetchAndCachePromoBanner(db);
+    if (!mounted) return;
+    if (fetched?.title != _livePromoBanner?.title ||
+        fetched?.subtitle != _livePromoBanner?.subtitle ||
+        fetched?.contactOrLink != _livePromoBanner?.contactOrLink) {
+      setState(() {
+        _livePromoBanner = fetched;
+      });
+    }
+  }
 
   void _reload() => setState(() {
         _future = _load();
@@ -66,9 +123,20 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
 
   Future<void> _add() async {
     final db = AppScope.of(context);
+    final existingSubjects = await db.subjects.getAll();
+    if (!mounted) return;
+    final existingNames = {
+      for (final s in existingSubjects) s.name.trim().toLowerCase(),
+    };
+    final remainingPresets = PresetCatalogService.availablePresets
+        .where((p) => !existingNames.contains(p.name.trim().toLowerCase()))
+        .toList();
+
     final result = await showDialog<_AddSubjectOutcome>(
       context: context,
       builder: (_) => _AddSubjectDialog(
+        availablePresets: remainingPresets,
+        existingSubjectNamesLower: existingNames,
         presetCatalogService: widget.presetCatalogService,
         onManualCreate: (name, desc) =>
             db.subjects.create(name: name, description: desc),
@@ -110,11 +178,23 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
 
   Future<void> _delete(Subject s) async {
     if (!await confirmDelete(context, s.name) || !mounted) return;
+    final subjectsRepo = AppScope.of(context).subjects;
     try {
-      await AppScope.of(context).subjects.delete(s.id);
+      await subjectsRepo.delete(s.id);
       if (mounted) _reload();
     } on AppDatabaseException catch (e) {
-      if (mounted) showMessage(context, dbErrorMessage(e, name: s.name));
+      if (!mounted) return;
+      if (e.kind == DbErrorKind.hasDependents) {
+        if (!await confirmCascadeDelete(context, s.name) || !mounted) return;
+        try {
+          await subjectsRepo.delete(s.id, cascade: true);
+          if (mounted) _reload();
+        } on AppDatabaseException catch (err) {
+          if (mounted) showMessage(context, dbErrorMessage(err, name: s.name));
+        }
+      } else {
+        showMessage(context, dbErrorMessage(e, name: s.name));
+      }
     }
   }
 
@@ -125,6 +205,18 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
         builder: (_) => StudySessionScreen.forSubject(
           subjectId: s.id,
           subjectName: s.name,
+        ),
+      ),
+    );
+    if (mounted) _reload();
+  }
+
+  Future<void> _studyDueToday(int dueCount) async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => StudySessionScreen.forAllDue(
+          title: S.dueTodayBadge(dueCount),
         ),
       ),
     );
@@ -177,33 +269,67 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
               ),
             ],
           ),
+          const ThemeModeButton(),
           const LanguageSelectorButton(),
         ],
       ),
       body: CenteredBody(
-        child: AsyncView<List<Subject>>(
+        child: AsyncView<_HomeSubjectsPayload>(
           future: _future!,
           onRetry: _reload,
-          builder: (context, items) => _CatalogList<Subject>(
-            items: items,
-            emptyText: S.subjectsEmpty,
-            titleOf: (s) => s.name,
-            subtitleOf: (s) => s.description,
-            onTap: (s) async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute<void>(
-                  builder: (_) => BooksScreen(subject: s),
+          builder: (context, payload) {
+            final activeBanner = _promoDismissed
+                ? null
+                : (_livePromoBanner ?? payload.promoBanner);
+            final showStatusHeader = payload.items.isNotEmpty ||
+                payload.streakDays > 0 ||
+                payload.dueTodayCount > 0;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (showStatusHeader)
+                  _DailyRetentionBar(
+                    streakDays: payload.streakDays,
+                    dueTodayCount: payload.dueTodayCount,
+                    onTapDueToday: payload.dueTodayCount > 0
+                        ? () => _studyDueToday(payload.dueTodayCount)
+                        : null,
+                  ),
+                if (activeBanner != null)
+                  _PromoBannerCard(
+                    banner: activeBanner,
+                    onDismiss: () => setState(() => _promoDismissed = true),
+                  ),
+                Expanded(
+                  child: _CatalogList<Subject>(
+                    items: payload.items,
+                    emptyText: S.subjectsEmpty,
+                    titleOf: (s) => s.name,
+                    subtitleOf: (s) => s.description,
+                    progressOf: (s) => payload.progress[s.id]?.ratio ?? 0.0,
+                    progressKeyOf: (s) => Key('subject-progress-${s.id}'),
+                    onTap: (s) async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (_) => BooksScreen(
+                            subject: s,
+                            presetCatalogService: widget.presetCatalogService,
+                          ),
+                        ),
+                      );
+                      if (mounted) _reload();
+                    },
+                    onStudy: _studySubjectItem,
+                    studyTooltip: S.studySubject,
+                    studyKeyOf: (s) => Key('study-subject-${s.id}'),
+                    onEdit: _edit,
+                    onDelete: _delete,
+                  ),
                 ),
-              );
-              if (mounted) _reload();
-            },
-            onStudy: _studySubjectItem,
-            studyTooltip: S.studySubject,
-            studyKeyOf: (s) => Key('study-subject-${s.id}'),
-            onEdit: _edit,
-            onDelete: _delete,
-          ),
+              ],
+            );
+          },
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -223,18 +349,22 @@ class BooksScreen extends StatefulWidget {
     required this.subject,
     this.pickImageFile,
     this.imageStorage = const ImageStorageService(),
+    this.presetCatalogService = const PresetCatalogService(),
   });
 
   final Subject subject;
   final ImageFilePicker? pickImageFile;
   final ImageStorageService imageStorage;
+  final PresetCatalogService presetCatalogService;
 
   @override
   State<BooksScreen> createState() => _BooksScreenState();
 }
 
 class _BooksScreenState extends State<BooksScreen> {
-  Future<List<Book>>? _future;
+  Future<_CatalogPayload<Book>>? _future;
+  PresetSubjectDefinition? _customLinkedPreset;
+  bool _syncingPreset = false;
 
   @override
   void didChangeDependencies() {
@@ -242,8 +372,22 @@ class _BooksScreenState extends State<BooksScreen> {
     _future ??= _load();
   }
 
-  Future<List<Book>> _load() =>
-      AppScope.of(context).books.listBySubject(widget.subject.id);
+  Future<_CatalogPayload<Book>> _load() async {
+    final db = AppScope.of(context);
+    final items = await db.books.listBySubject(widget.subject.id);
+    final progress = await db.flashcards.progressByBook(widget.subject.id);
+    final customPresets = await PresetCatalogService.loadLinkedPresets(db);
+    final resolvedPreset = PresetCatalogService.findPresetByName(
+      widget.subject.name,
+      customPresets: customPresets,
+    );
+    if (mounted && _customLinkedPreset?.spreadsheetId != resolvedPreset?.spreadsheetId) {
+      setState(() => _customLinkedPreset = resolvedPreset);
+    } else {
+      _customLinkedPreset = resolvedPreset;
+    }
+    return _CatalogPayload(items, progress);
+  }
 
   void _reload() => setState(() {
         _future = _load();
@@ -294,11 +438,23 @@ class _BooksScreenState extends State<BooksScreen> {
 
   Future<void> _delete(Book b) async {
     if (!await confirmDelete(context, b.name) || !mounted) return;
+    final booksRepo = AppScope.of(context).books;
     try {
-      await AppScope.of(context).books.delete(b.id);
+      await booksRepo.delete(b.id);
       if (mounted) _reload();
     } on AppDatabaseException catch (e) {
-      if (mounted) showMessage(context, dbErrorMessage(e, name: b.name));
+      if (!mounted) return;
+      if (e.kind == DbErrorKind.hasDependents) {
+        if (!await confirmCascadeDelete(context, b.name) || !mounted) return;
+        try {
+          await booksRepo.delete(b.id, cascade: true);
+          if (mounted) _reload();
+        } on AppDatabaseException catch (err) {
+          if (mounted) showMessage(context, dbErrorMessage(err, name: b.name));
+        }
+      } else {
+        showMessage(context, dbErrorMessage(e, name: b.name));
+      }
     }
   }
 
@@ -328,13 +484,61 @@ class _BooksScreenState extends State<BooksScreen> {
     if (mounted) _reload();
   }
 
+  Future<void> _syncPreset(PresetSubjectDefinition preset) async {
+    if (_syncingPreset) return;
+    setState(() => _syncingPreset = true);
+    try {
+      final db = AppScope.of(context);
+      final r = await widget.presetCatalogService.downloadAndImportPreset(
+        db: db,
+        preset: preset,
+      );
+      if (!mounted) return;
+      setState(() => _syncingPreset = false);
+      _reload();
+      showMessage(
+        context,
+        S.presetImportSuccess(
+          r.subjectName,
+          r.booksCount,
+          r.topicsCount,
+          r.cardsImported,
+        ),
+      );
+    } on AppDatabaseException catch (e) {
+      if (!mounted) return;
+      setState(() => _syncingPreset = false);
+      showMessage(context, dbErrorMessage(e));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _syncingPreset = false);
+      showMessage(context, S.presetImportError);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     AppScope.languageOf(context);
+    final linkedPreset = _customLinkedPreset ??
+        PresetCatalogService.findPresetByName(widget.subject.name);
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.subject.name),
         actions: [
+          if (linkedPreset != null)
+            IconButton(
+              key: const Key('sync-preset-subject-button'),
+              tooltip: S.syncFromDatabase,
+              onPressed:
+                  _syncingPreset ? null : () => _syncPreset(linkedPreset),
+              icon: _syncingPreset
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.sync),
+            ),
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: FilledButton.tonalIcon(
@@ -347,14 +551,16 @@ class _BooksScreenState extends State<BooksScreen> {
         ],
       ),
       body: CenteredBody(
-        child: AsyncView<List<Book>>(
+        child: AsyncView<_CatalogPayload<Book>>(
           future: _future!,
           onRetry: _reload,
-          builder: (context, items) => _CatalogList<Book>(
-            items: items,
+          builder: (context, payload) => _CatalogList<Book>(
+            items: payload.items,
             emptyText: S.booksEmpty,
             titleOf: (b) => b.name,
             subtitleOf: (b) => b.description,
+            progressOf: (b) => payload.progress[b.id]?.ratio ?? 0.0,
+            progressKeyOf: (b) => Key('book-progress-${b.id}'),
             leadingBuilder: (context, b) => _BookCoverThumbnail(
               key: Key('book-cover-${b.id}'),
               imagePath: b.imagePath,
@@ -430,7 +636,7 @@ class TopicsScreen extends StatefulWidget {
 }
 
 class _TopicsScreenState extends State<TopicsScreen> {
-  Future<List<Topic>>? _future;
+  Future<_CatalogPayload<Topic>>? _future;
 
   @override
   void didChangeDependencies() {
@@ -438,8 +644,12 @@ class _TopicsScreenState extends State<TopicsScreen> {
     _future ??= _load();
   }
 
-  Future<List<Topic>> _load() =>
-      AppScope.of(context).topics.listByBook(widget.book.id);
+  Future<_CatalogPayload<Topic>> _load() async {
+    final db = AppScope.of(context);
+    final items = await db.topics.listByBook(widget.book.id);
+    final progress = await db.flashcards.progressByTopic(widget.book.id);
+    return _CatalogPayload(items, progress);
+  }
 
   void _reload() => setState(() {
         _future = _load();
@@ -485,7 +695,18 @@ class _TopicsScreenState extends State<TopicsScreen> {
       }
       if (mounted) _reload();
     } on AppDatabaseException catch (e) {
-      if (mounted) showMessage(context, dbErrorMessage(e, name: t.name));
+      if (!mounted) return;
+      if (e.kind == DbErrorKind.hasDependents) {
+        if (!await confirmCascadeDelete(context, t.name) || !mounted) return;
+        try {
+          await scope.topics.delete(t.id, cascade: true);
+          if (mounted) _reload();
+        } on AppDatabaseException catch (err) {
+          if (mounted) showMessage(context, dbErrorMessage(err, name: t.name));
+        }
+      } else {
+        showMessage(context, dbErrorMessage(e, name: t.name));
+      }
     }
   }
 
@@ -497,6 +718,16 @@ class _TopicsScreenState extends State<TopicsScreen> {
           bookId: widget.book.id,
           bookName: widget.book.name,
         ),
+      ),
+    );
+    if (mounted) _reload();
+  }
+
+  Future<void> _searchBookCards() async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => BookFlashcardSearchScreen(book: widget.book),
       ),
     );
     if (mounted) _reload();
@@ -522,6 +753,12 @@ class _TopicsScreenState extends State<TopicsScreen> {
       appBar: AppBar(
         title: Text(widget.book.name),
         actions: [
+          IconButton(
+            key: const Key('search-book-cards-button'),
+            tooltip: S.searchCards,
+            icon: const Icon(Icons.search),
+            onPressed: _searchBookCards,
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: FilledButton.tonalIcon(
@@ -534,14 +771,16 @@ class _TopicsScreenState extends State<TopicsScreen> {
         ],
       ),
       body: CenteredBody(
-        child: AsyncView<List<Topic>>(
+        child: AsyncView<_CatalogPayload<Topic>>(
           future: _future!,
           onRetry: _reload,
-          builder: (context, items) => _CatalogList<Topic>(
-            items: items,
+          builder: (context, payload) => _CatalogList<Topic>(
+            items: payload.items,
             emptyText: S.topicsEmpty,
             titleOf: (t) => t.name,
             subtitleOf: (t) => t.description,
+            progressOf: (t) => payload.progress[t.id]?.ratio ?? 0.0,
+            progressKeyOf: (t) => Key('topic-progress-${t.id}'),
             onTap: (t) async {
               await Navigator.push(
                 context,
@@ -684,6 +923,8 @@ class _CatalogList<T> extends StatelessWidget {
     this.onStudy,
     this.studyTooltip,
     this.studyKeyOf,
+    this.progressOf,
+    this.progressKeyOf,
   });
 
   final List<T> items;
@@ -698,6 +939,8 @@ class _CatalogList<T> extends StatelessWidget {
   final ValueChanged<T>? onStudy;
   final String? studyTooltip;
   final Key Function(T item)? studyKeyOf;
+  final double Function(T item)? progressOf;
+  final Key Function(T item)? progressKeyOf;
 
   @override
   Widget build(BuildContext context) {
@@ -710,6 +953,13 @@ class _CatalogList<T> extends StatelessWidget {
       );
     }
     final colorScheme = Theme.of(context).colorScheme;
+    final isDark = colorScheme.brightness == Brightness.dark;
+    final fillGreen = isDark
+        ? const Color(0xFF2D6A4F).withValues(alpha: 0.34)
+        : const Color(0xFF40916C).withValues(alpha: 0.16);
+    final barGreen =
+        isDark ? const Color(0xFF52B788) : const Color(0xFF2D6A4F);
+
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
       itemCount: items.length,
@@ -720,71 +970,101 @@ class _CatalogList<T> extends StatelessWidget {
         final sub = subtitleOf(item);
         final badge = badgeBuilder?.call(context, item);
         final hasSub = sub != null && sub.isNotEmpty;
+        final progress = (progressOf?.call(item) ?? 0.0).clamp(0.0, 1.0);
         return Card(
           margin: EdgeInsets.zero,
-          elevation: 1,
-          color: colorScheme.secondaryContainer.withValues(alpha: 0.45),
+          elevation: 0,
+          color: colorScheme.surface,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(12),
             side: BorderSide(color: colorScheme.outlineVariant),
           ),
           clipBehavior: Clip.antiAlias,
-          child: ListTile(
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-            leading: leadingBuilder?.call(context, item),
-            title: Text(
-              title,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
+          child: Stack(
+            children: [
+              if (progress > 0)
+                Positioned.fill(
+                  child: FractionallySizedBox(
+                    key: progressKeyOf?.call(item),
+                    alignment: Alignment.centerLeft,
+                    widthFactor: progress,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(color: fillGreen),
+                    ),
                   ),
-            ),
-            subtitle: (badge == null && !hasSub)
-                ? null
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (badge != null) ...[
-                        const SizedBox(height: 4),
-                        badge,
-                      ],
-                      if (hasSub) ...[
-                        const SizedBox(height: 4),
-                        Text(sub),
-                      ],
-                    ],
+                ),
+              ListTile(
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                leading: leadingBuilder?.call(context, item),
+                title: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                subtitle: (badge == null && !hasSub)
+                    ? null
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (badge != null) ...[
+                            const SizedBox(height: 4),
+                            badge,
+                          ],
+                          if (hasSub) ...[
+                            const SizedBox(height: 4),
+                            Text(sub),
+                          ],
+                        ],
+                      ),
+                onTap: () => onTap(item),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (onStudy != null)
+                      IconButton.filledTonal(
+                        key: studyKeyOf?.call(item),
+                        tooltip: studyTooltip ?? S.study,
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.play_arrow),
+                        onPressed: () => onStudy!(item),
+                      ),
+                    IconButton(
+                      tooltip: S.edit,
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(Icons.edit_outlined),
+                      onPressed: () => onEdit(item),
+                    ),
+                    IconButton(
+                      tooltip: S.delete,
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: () => onDelete(item),
+                    ),
+                    Icon(
+                      Icons.chevron_right,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ],
+                ),
+              ),
+              if (progress > 0)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: 3.5,
+                  child: FractionallySizedBox(
+                    alignment: Alignment.centerLeft,
+                    widthFactor: progress,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(color: barGreen),
+                    ),
                   ),
-            onTap: () => onTap(item),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (onStudy != null)
-                  IconButton.filledTonal(
-                    key: studyKeyOf?.call(item),
-                    tooltip: studyTooltip ?? S.study,
-                    visualDensity: VisualDensity.compact,
-                    icon: const Icon(Icons.play_arrow),
-                    onPressed: () => onStudy!(item),
-                  ),
-                IconButton(
-                  tooltip: S.edit,
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.edit_outlined),
-                  onPressed: () => onEdit(item),
                 ),
-                IconButton(
-                  tooltip: S.delete,
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: () => onDelete(item),
-                ),
-                Icon(
-                  Icons.chevron_right,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ],
-            ),
+            ],
           ),
         );
       },
@@ -1094,11 +1374,15 @@ class _AddSubjectOutcome {
 
 class _AddSubjectDialog extends StatefulWidget {
   const _AddSubjectDialog({
+    required this.availablePresets,
+    required this.existingSubjectNamesLower,
     required this.presetCatalogService,
     required this.onManualCreate,
     required this.onDownloadPreset,
   });
 
+  final List<PresetSubjectDefinition> availablePresets;
+  final Set<String> existingSubjectNamesLower;
   final PresetCatalogService presetCatalogService;
   final Future<void> Function(String name, String? description) onManualCreate;
   final Future<PresetImportResult> Function(PresetSubjectDefinition preset)
@@ -1112,15 +1396,67 @@ class _AddSubjectDialogState extends State<_AddSubjectDialog> {
   final _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
   final _desc = TextEditingController();
+  final _sheetSubjectName = TextEditingController();
+  final _sheetUrl = TextEditingController();
+  late List<PresetSubjectDefinition> _presets = List.of(widget.availablePresets);
+  bool _showUrlImport = false;
   bool _busy = false;
   bool _downloadingPreset = false;
   String? _error;
 
   @override
+  void initState() {
+    super.initState();
+    _discoverRemotePresets();
+  }
+
+  Future<void> _discoverRemotePresets() async {
+    final discovered =
+        await widget.presetCatalogService.fetchRemoteCatalogPresets();
+    if (!mounted) return;
+    final filtered = discovered
+        .where(
+          (p) => !widget.existingSubjectNamesLower.contains(
+            p.name.trim().toLowerCase(),
+          ),
+        )
+        .toList();
+    if (filtered.length != _presets.length) {
+      setState(() => _presets = filtered);
+    }
+  }
+
+  @override
   void dispose() {
     _name.dispose();
     _desc.dispose();
+    _sheetSubjectName.dispose();
+    _sheetUrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _downloadFromCustomUrl() async {
+    if (_busy) return;
+    final subjName = _sheetSubjectName.text.trim();
+    final rawUrl = _sheetUrl.text.trim();
+    if (subjName.isEmpty) {
+      setState(() => _error = S.nameRequired);
+      return;
+    }
+    final sheetId = PresetCatalogService.extractSpreadsheetId(rawUrl);
+    if (sheetId == null) {
+      setState(() => _error = S.googleSheetsUrlInvalid);
+      return;
+    }
+    final customPreset = PresetSubjectDefinition(
+      id: subjName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_'),
+      name: subjName,
+      description: '',
+      spreadsheetId: sheetId,
+      topicsGid: '0',
+      answersGid: PresetCatalogService.extractGidFromUrl(rawUrl),
+    );
+    await _downloadPreset(customPreset);
   }
 
   Future<void> _downloadPreset(PresetSubjectDefinition preset) async {
@@ -1178,6 +1514,7 @@ class _AddSubjectDialogState extends State<_AddSubjectDialog> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final hasPresets = _presets.isNotEmpty;
     return AlertDialog(
       title: Text(S.addSubject),
       content: SingleChildScrollView(
@@ -1185,57 +1522,101 @@ class _AddSubjectDialogState extends State<_AddSubjectDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Option 1: Download from preset database (Google Sheets)
-            Text(
-              S.addSubjectFromDatabase,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: colorScheme.primary,
+            if (hasPresets) ...[
+              // Option 1: Download from preset database (Google Sheets)
+              Text(
+                S.addSubjectFromDatabase,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: colorScheme.primary,
+                    ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                S.addSubjectFromDatabaseSub,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 8),
+              for (final preset in _presets)
+                Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  color: colorScheme.primaryContainer.withValues(alpha: 0.45),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: colorScheme.outlineVariant),
                   ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              S.addSubjectFromDatabaseSub,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 8),
-            for (final preset in PresetCatalogService.availablePresets)
-              Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                color: colorScheme.primaryContainer.withValues(alpha: 0.45),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: colorScheme.outlineVariant),
+                  child: ListTile(
+                    key: Key('preset-subject-${preset.id}'),
+                    leading: Icon(
+                      Icons.cloud_download_outlined,
+                      color: colorScheme.primary,
+                    ),
+                    title: Text(
+                      preset.name,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: preset.description.isEmpty
+                        ? null
+                        : Text(
+                            preset.description,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                    trailing: _downloadingPreset
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.download_rounded),
+                    onTap: _busy ? null : () => _downloadPreset(preset),
+                  ),
                 ),
-                child: ListTile(
-                  key: Key('preset-subject-${preset.id}'),
-                  leading: Icon(
-                    Icons.cloud_download_outlined,
-                    color: colorScheme.primary,
-                  ),
-                  title: Text(
-                    preset.name,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  subtitle: Text(
-                    preset.description,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  trailing: _downloadingPreset
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.download_rounded),
-                  onTap: _busy ? null : () => _downloadPreset(preset),
+            ],
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                key: const Key('toggle-sheet-url-import'),
+                onPressed: _busy
+                    ? null
+                    : () => setState(() => _showUrlImport = !_showUrlImport),
+                icon: Icon(
+                  _showUrlImport ? Icons.expand_less : Icons.link,
+                  size: 18,
+                ),
+                label: Text(S.addByGoogleSheetsUrl),
+              ),
+            ),
+            if (_showUrlImport) ...[
+              const SizedBox(height: 6),
+              TextField(
+                key: const Key('field-sheet-subject-name'),
+                controller: _sheetSubjectName,
+                enabled: !_busy,
+                decoration: InputDecoration(labelText: S.name),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                key: const Key('field-sheet-url'),
+                controller: _sheetUrl,
+                enabled: !_busy,
+                decoration: InputDecoration(
+                  labelText: S.googleSheetsUrlLabel,
+                  hintText: 'https://docs.google.com/spreadsheets/d/...',
                 ),
               ),
+              const SizedBox(height: 8),
+              FilledButton.tonalIcon(
+                key: const Key('download-sheet-url-button'),
+                onPressed: _busy ? null : _downloadFromCustomUrl,
+                icon: const Icon(Icons.cloud_download_outlined, size: 18),
+                label: Text(S.downloadFromSheetUrl),
+              ),
+            ],
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
               child: Divider(),
             ),
-            // Option 2: Create from 0 manually
+            // Option 2: Create a new subject manually
             Text(
               S.addSubjectFromScratch,
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -1257,6 +1638,7 @@ class _AddSubjectDialogState extends State<_AddSubjectDialog> {
                   TextFormField(
                     key: const Key('field-name'),
                     controller: _name,
+                    autofocus: !hasPresets,
                     enabled: !_busy,
                     decoration: InputDecoration(labelText: S.name),
                     validator: (v) =>
@@ -1294,6 +1676,231 @@ class _AddSubjectDialogState extends State<_AddSubjectDialog> {
           child: Text(S.save),
         ),
       ],
+    );
+  }
+}
+
+/// Compact, calm daily retention bar displaying the user's consecutive study
+/// streak (`🔥 <N> kún úzliksiz`) and the count of flashcards due today
+/// (`📅 Búgin qaytalaw: <N>`).
+class _DailyRetentionBar extends StatelessWidget {
+  const _DailyRetentionBar({
+    required this.streakDays,
+    required this.dueTodayCount,
+    this.onTapDueToday,
+  });
+
+  final int streakDays;
+  final int dueTodayCount;
+  final VoidCallback? onTapDueToday;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = colorScheme.brightness == Brightness.dark;
+    final streakColor =
+        isDark ? const Color(0xFFE09F67) : const Color(0xFFB35E24);
+    final streakBg = isDark
+        ? const Color(0xFF36281E)
+        : const Color(0xFFF9EFE6);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Row(
+        children: [
+          // 1. 🔥 Daily Streak Pill
+          Expanded(
+            child: Container(
+              key: const Key('home-streak-badge'),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: streakBg,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: streakColor.withValues(alpha: 0.35),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.local_fire_department_rounded,
+                    size: 18,
+                    color: streakColor,
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      S.streakDaysBadge(streakDays),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            color: streakColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          // 2. 📅 Due Today Pill (tappable when dueTodayCount > 0)
+          Expanded(
+            child: Material(
+              color: colorScheme.primaryContainer.withValues(alpha: 0.65),
+              borderRadius: BorderRadius.circular(10),
+              child: InkWell(
+                key: const Key('home-due-today-badge'),
+                borderRadius: BorderRadius.circular(10),
+                onTap: onTapDueToday,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: colorScheme.outlineVariant),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.event_available_outlined,
+                        size: 18,
+                        color: colorScheme.onPrimaryContainer,
+                      ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          S.dueTodayBadge(dueTodayCount),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              Theme.of(context).textTheme.labelLarge?.copyWith(
+                                    color: colorScheme.onPrimaryContainer,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Polite, understated announcement / sponsor card managed remotely via the
+/// `Reklama` worksheet in the master Google Spreadsheet.
+class _PromoBannerCard extends StatelessWidget {
+  const _PromoBannerCard({
+    required this.banner,
+    required this.onDismiss,
+  });
+
+  final PromoBannerData banner;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final sub = banner.subtitle;
+    final contact = banner.contactOrLink;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      child: Card(
+        key: const Key('promo-banner-card'),
+        color: colorScheme.secondaryContainer.withValues(alpha: 0.55),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: colorScheme.outlineVariant),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.campaign_outlined,
+                size: 20,
+                color: colorScheme.primary,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            S.promoBadgeLabel,
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelSmall
+                                ?.copyWith(
+                                  color: colorScheme.onPrimaryContainer,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 10,
+                                ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            banner.title,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (sub != null && sub.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        sub,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                    if (contact != null && contact.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      SelectableText(
+                        contact,
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                              color: colorScheme.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              IconButton(
+                key: const Key('dismiss-promo-banner'),
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.close, size: 16),
+                onPressed: onDismiss,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
