@@ -88,6 +88,14 @@ class FlashcardRepository extends RepositoryBase {
         return rows.map(Flashcard.fromMap).toList();
       });
 
+  /// Lists all flashcards across the entire database.
+  Future<List<Flashcard>> listAll() =>
+      guardDb('List all flashcards', () async {
+        final rows =
+            await db.query('flashcards', orderBy: 'created_at, id');
+        return rows.map(Flashcard.fromMap).toList();
+      });
+
   /// Lists all flashcards across every book, topic, and deck belonging to
   /// [subjectId]. Never returns cards from other subjects.
   Future<List<Flashcard>> listBySubject(String subjectId) =>

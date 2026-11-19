@@ -1112,4 +1112,53 @@ class S {
         uz: 'Havola nusxalandi: $adminTelegramUrl',
         ru: 'Ссылка скопирована: $adminTelegramUrl',
       );
+
+  // Quick Add Card, Home navigation, and Move Card to Topic
+  static String get quickAddCard => _pick(
+        kaa: 'Tez karta',
+        uz: 'Tez karta',
+        ru: 'Быстрая карта',
+      );
+
+  static String get quickNotesSubjectName => _pick(
+        kaa: 'Tez jazbalar',
+        uz: 'Tez yozuvlar',
+        ru: 'Быстрые заметки',
+      );
+
+  static String get generalDefaultName => _pick(
+        kaa: 'Ulıwma',
+        uz: 'Umumiy',
+        ru: 'Общее',
+      );
+
+  static String get homeTooltip => _pick(
+        kaa: 'Bas bet',
+        uz: 'Bosh sahifa',
+        ru: 'Главная',
+      );
+
+  static String get cardDestinationLabel => _pick(
+        kaa: 'Qay jerge:',
+        uz: 'Qayerga:',
+        ru: 'Куда:',
+      );
+
+  static String get moveCardToTopic => _pick(
+        kaa: 'Basqa temaǵa kóshiriw',
+        uz: 'Boshqa mavzuga koʻchirish',
+        ru: 'Переместить в другую тему',
+      );
+
+  static String get selectDestinationTopic => _pick(
+        kaa: 'Temanı tańlań',
+        uz: 'Mavzuni tanlang',
+        ru: 'Выберите тему',
+      );
+
+  static String get cardMovedSuccess => _pick(
+        kaa: 'Kartochka kóshirildi.',
+        uz: 'Kartochka koʻchirildi.',
+        ru: 'Карточка перемещена.',
+      );
 }

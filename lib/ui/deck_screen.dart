@@ -100,7 +100,14 @@ class _DeckScreenState extends State<DeckScreen> {
       });
 
   Future<void> _add() async {
+    final db = AppScope.of(context);
     final targetDeckId = await _resolveTargetDeckId();
+    if (widget.topic != null) {
+      await QuickCardDestinationResolver.recordLastActiveTopic(
+        db,
+        widget.topic!.id,
+      );
+    }
     if (!mounted) return;
     final saved = await Navigator.push<bool>(
       context,
@@ -179,6 +186,33 @@ class _DeckScreenState extends State<DeckScreen> {
     }
   }
 
+  Future<void> _moveCard(Flashcard card) async {
+    final db = AppScope.of(context);
+    final options = await QuickCardDestinationResolver.loadAllDestinations(db);
+    if (!mounted || options.isEmpty) return;
+    final picked = await showSelectDestinationDialog(
+      context,
+      options: options,
+      currentTopicId: widget.topic?.id,
+    );
+    if (picked == null || !mounted) return;
+    if (picked.deckId == card.deckId) return;
+    try {
+      await db.flashcards.update(card.copyWith(deckId: picked.deckId));
+      await QuickCardDestinationResolver.recordLastActiveTopic(
+        db,
+        picked.topicId,
+      );
+      if (!mounted) return;
+      _reload();
+      showMessage(context, S.cardMovedSuccess);
+    } on AppDatabaseException catch (e) {
+      if (mounted) {
+        showMessage(context, dbErrorMessage(e, name: card.targetText));
+      }
+    }
+  }
+
   Future<void> _delete(Flashcard card) async {
     if (!await confirmDelete(context, card.targetText) || !mounted) return;
     try {
@@ -206,23 +240,91 @@ class _DeckScreenState extends State<DeckScreen> {
   Widget build(BuildContext context) {
     AppScope.languageOf(context);
     final colorScheme = Theme.of(context).colorScheme;
+    final canPop = Navigator.canPop(context);
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_screenTitle),
-        actions: [
-          IconButton(
-            key: const Key('search-cards-button'),
-            tooltip: S.searchCards,
-            icon: Icon(_searching ? Icons.search_off : Icons.search),
-            onPressed: _toggleSearch,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(116),
+        child: Material(
+          color: colorScheme.surface,
+          elevation: 0,
+          child: SafeArea(
+            bottom: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Row 1: [Home (small)]   [+ Karta qosıw (large)]   [🔍 Search (right)]
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 6, 12, 4),
+                  child: Row(
+                    children: [
+                      IconButton.outlined(
+                        key: const Key('home-nav-button'),
+                        tooltip: S.homeTooltip,
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.home_outlined, size: 20),
+                        onPressed: () => Navigator.of(context)
+                            .popUntil((route) => route.isFirst),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: FilledButton.icon(
+                          key: const Key('fab-add-flashcard'),
+                          onPressed: _add,
+                          icon: const Icon(Icons.add, size: 18),
+                          label: Text(
+                            S.addFlashcard,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton.filledTonal(
+                        key: const Key('search-cards-button'),
+                        tooltip: S.searchCards,
+                        visualDensity: VisualDensity.compact,
+                        icon: Icon(
+                          _searching ? Icons.search_off : Icons.search,
+                          size: 20,
+                        ),
+                        onPressed: _toggleSearch,
+                      ),
+                    ],
+                  ),
+                ),
+                // Row 2: [← Back] Topic/Deck name + Excel import
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 0, 8, 4),
+                  child: Row(
+                    children: [
+                      if (canPop) const BackButton(),
+                      if (!canPop) const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          _screenTitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                        ),
+                      ),
+                      IconButton(
+                        key: const Key('import-excel-button'),
+                        tooltip: S.importExcel,
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.upload_file_outlined),
+                        onPressed: _importExcel,
+                      ),
+                    ],
+                  ),
+                ),
+                Divider(height: 1, color: colorScheme.outlineVariant),
+              ],
+            ),
           ),
-          IconButton(
-            key: const Key('import-excel-button'),
-            tooltip: S.importExcel,
-            icon: const Icon(Icons.upload_file_outlined),
-            onPressed: _importExcel,
-          ),
-        ],
+        ),
       ),
       body: CenteredBody(
         child: AsyncView<List<Flashcard>>(
@@ -236,26 +338,12 @@ class _DeckScreenState extends State<DeckScreen> {
                 Material(
                   color: colorScheme.surfaceContainerHighest,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 10),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            S.cardCount(cards.length),
-                            key: const Key('card-count'),
-                            style: Theme.of(context).textTheme.titleSmall,
-                          ),
-                        ),
-                        FilledButton.tonalIcon(
-                          key: const Key('study-deck-button'),
-                          onPressed: _study,
-                          icon: const Icon(Icons.play_arrow),
-                          label: Text(
-                            widget.topic != null ? S.studyTopic : S.studyDeck,
-                          ),
-                        ),
-                      ],
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Text(
+                      S.cardCount(cards.length),
+                      key: const Key('card-count'),
+                      style: Theme.of(context).textTheme.titleSmall,
                     ),
                   ),
                 ),
@@ -300,7 +388,7 @@ class _DeckScreenState extends State<DeckScreen> {
                               ),
                             )
                           : ListView.separated(
-                              padding: const EdgeInsets.only(bottom: 88),
+                              padding: const EdgeInsets.only(bottom: 24),
                               itemCount: filteredCards.length,
                               separatorBuilder: (_, _) =>
                                   const Divider(height: 1),
@@ -358,26 +446,51 @@ class _DeckScreenState extends State<DeckScreen> {
                                   trailing: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      PopupMenuButton<CardStatus>(
+                                      PopupMenuButton<_CardMenuAction>(
                                         key: Key('card-status-menu-${c.id}'),
                                         icon: const Icon(Icons.tune_outlined),
-                                        onSelected: (s) => _changeStatus(c, s),
+                                        onSelected: (action) {
+                                          switch (action) {
+                                            case _CardMenuAction.learning:
+                                              _changeStatus(
+                                                c,
+                                                CardStatus.learning,
+                                              );
+                                            case _CardMenuAction.mastered:
+                                              _changeStatus(
+                                                c,
+                                                CardStatus.mastered,
+                                              );
+                                            case _CardMenuAction.suspended:
+                                              _changeStatus(
+                                                c,
+                                                CardStatus.suspended,
+                                              );
+                                            case _CardMenuAction.moveToTopic:
+                                              _moveCard(c);
+                                          }
+                                        },
                                         itemBuilder: (_) => [
                                           if (c.status != CardStatus.learning)
                                             PopupMenuItem(
-                                              value: CardStatus.learning,
+                                              value: _CardMenuAction.learning,
                                               child: Text(S.restoreToLearning),
                                             ),
                                           if (c.status != CardStatus.mastered)
                                             PopupMenuItem(
-                                              value: CardStatus.mastered,
+                                              value: _CardMenuAction.mastered,
                                               child: Text(S.markMastered),
                                             ),
                                           if (c.status != CardStatus.suspended)
                                             PopupMenuItem(
-                                              value: CardStatus.suspended,
+                                              value: _CardMenuAction.suspended,
                                               child: Text(S.suspendCard),
                                             ),
+                                          PopupMenuItem(
+                                            key: Key('move-card-${c.id}'),
+                                            value: _CardMenuAction.moveToTopic,
+                                            child: Text(S.moveCardToTopic),
+                                          ),
                                         ],
                                       ),
                                       IconButton(
@@ -407,14 +520,31 @@ class _DeckScreenState extends State<DeckScreen> {
           },
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        key: const Key('fab-add-flashcard'),
-        onPressed: _add,
-        icon: const Icon(Icons.add),
-        label: Text(S.addFlashcard),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        child: SizedBox(
+          height: 46,
+          child: FilledButton.tonalIcon(
+            key: const Key('study-deck-button'),
+            onPressed: _study,
+            icon: const Icon(Icons.play_arrow),
+            label: Text(
+              widget.topic != null ? S.studyTopic : S.studyDeck,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ),
       ),
     );
   }
+}
+
+enum _CardMenuAction {
+  learning,
+  mastered,
+  suspended,
+  moveToTopic,
 }
 
 List<Flashcard> _filterCardsByTarget(List<Flashcard> cards, String query) {
@@ -472,16 +602,27 @@ class _PageNumberBadge extends StatelessWidget {
   }
 }
 
-/// Dedicated search screen for finding flashcards across an entire [Book] by
-/// target word (`Gilt sóz`), displaying each found card's definition and its
-/// textbook page number (`📖 <page>-bet`).
+/// Dedicated search screen for finding flashcards across a [Book], a [Subject],
+/// or the entire database by target word (`Gilt sóz`), displaying each found
+/// card's definition and its textbook page number (`📖 <page>-bet`).
 class BookFlashcardSearchScreen extends StatefulWidget {
   const BookFlashcardSearchScreen({
     super.key,
-    required this.book,
-  });
+    required Book this.book,
+  }) : subject = null;
 
-  final Book book;
+  const BookFlashcardSearchScreen.forSubject({
+    super.key,
+    required Subject this.subject,
+  }) : book = null;
+
+  const BookFlashcardSearchScreen.forAll({
+    super.key,
+  })  : book = null,
+        subject = null;
+
+  final Book? book;
+  final Subject? subject;
 
   @override
   State<BookFlashcardSearchScreen> createState() =>
@@ -504,10 +645,31 @@ class _BookFlashcardSearchScreenState extends State<BookFlashcardSearchScreen> {
     });
   }
 
+  Future<List<Flashcard>> _loadCards() {
+    final repo = AppScope.of(context).flashcards;
+    if (widget.book != null) {
+      return repo.listByBook(widget.book!.id);
+    }
+    if (widget.subject != null) {
+      return repo.listBySubject(widget.subject!.id);
+    }
+    return repo.listAll();
+  }
+
+  String get _title {
+    if (widget.book != null) {
+      return '${widget.book!.name} — ${S.searchCards}';
+    }
+    if (widget.subject != null) {
+      return '${widget.subject!.name} — ${S.searchCards}';
+    }
+    return S.searchCards;
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _future ??= AppScope.of(context).flashcards.listByBook(widget.book.id);
+    _future ??= _loadCards();
   }
 
   @override
@@ -517,7 +679,7 @@ class _BookFlashcardSearchScreenState extends State<BookFlashcardSearchScreen> {
   }
 
   void _reload() => setState(() {
-        _future = AppScope.of(context).flashcards.listByBook(widget.book.id);
+        _future = _loadCards();
       });
 
   Future<void> _preview(Flashcard card) async {
@@ -534,7 +696,7 @@ class _BookFlashcardSearchScreenState extends State<BookFlashcardSearchScreen> {
     AppScope.languageOf(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text('${widget.book.name} — ${S.searchCards}'),
+        title: Text(_title),
       ),
       body: CenteredBody(
         child: AsyncView<List<Flashcard>>(

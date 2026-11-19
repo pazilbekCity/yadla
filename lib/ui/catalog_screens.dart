@@ -10,6 +10,7 @@ import 'app_scope.dart';
 import 'backup_dialogs.dart';
 import 'common.dart';
 import 'deck_screen.dart';
+import 'flashcard_editor_screen.dart';
 import 'strings.dart';
 import 'study_session_screen.dart';
 
@@ -223,6 +224,36 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
     if (mounted) _reload();
   }
 
+  Future<void> _quickAddCard() async {
+    final db = AppScope.of(context);
+    final resolved =
+        await QuickCardDestinationResolver.resolveForQuickAdd(db);
+    if (!mounted) return;
+    final saved = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute<bool>(
+        builder: (_) => FlashcardEditorScreen(
+          deckId: resolved.initial.deckId,
+          initialDestination: resolved.initial,
+          availableDestinations: resolved.all,
+        ),
+      ),
+    );
+    if (mounted && (saved == true || resolved.all.isNotEmpty)) {
+      _reload();
+    }
+  }
+
+  Future<void> _searchAllCards() async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => const BookFlashcardSearchScreen.forAll(),
+      ),
+    );
+    if (mounted) _reload();
+  }
+
   @override
   Widget build(BuildContext context) {
     AppScope.languageOf(context);
@@ -271,6 +302,12 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
           ),
           const ThemeModeButton(),
           const LanguageSelectorButton(),
+          IconButton(
+            key: const Key('search-all-cards-button'),
+            tooltip: S.searchCards,
+            icon: const Icon(Icons.search),
+            onPressed: _searchAllCards,
+          ),
         ],
       ),
       body: CenteredBody(
@@ -332,11 +369,46 @@ class _SubjectsScreenState extends State<SubjectsScreen> {
           },
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        key: const Key('fab-add-subject'),
-        onPressed: _add,
-        icon: const Icon(Icons.add),
-        label: Text(S.addSubject),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: SizedBox(
+                height: 46,
+                child: FilledButton.tonalIcon(
+                  key: const Key('fab-add-subject'),
+                  onPressed: _add,
+                  icon: const Icon(Icons.add, size: 18),
+                  label: Text(
+                    S.addSubject,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: SizedBox(
+                height: 46,
+                child: FilledButton.icon(
+                  key: const Key('fab-quick-add-card'),
+                  onPressed: _quickAddCard,
+                  icon: const Icon(Icons.add, size: 18),
+                  label: Text(
+                    S.quickAddCard,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -516,39 +588,151 @@ class _BooksScreenState extends State<BooksScreen> {
     }
   }
 
+  Future<void> _quickAddCardInSubject() async {
+    final db = AppScope.of(context);
+    final resolved = await QuickCardDestinationResolver.resolveForQuickAdd(
+      db,
+      subject: widget.subject,
+    );
+    if (!mounted) return;
+    final saved = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute<bool>(
+        builder: (_) => FlashcardEditorScreen(
+          deckId: resolved.initial.deckId,
+          initialDestination: resolved.initial,
+          availableDestinations: resolved.all,
+        ),
+      ),
+    );
+    if (mounted && (saved == true || resolved.all.isNotEmpty)) {
+      _reload();
+    }
+  }
+
+  Future<void> _searchSubjectCards() async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            BookFlashcardSearchScreen.forSubject(subject: widget.subject),
+      ),
+    );
+    if (mounted) _reload();
+  }
+
   @override
   Widget build(BuildContext context) {
     AppScope.languageOf(context);
+    final colorScheme = Theme.of(context).colorScheme;
+    final canPop = Navigator.canPop(context);
     final linkedPreset = _customLinkedPreset ??
         PresetCatalogService.findPresetByName(widget.subject.name);
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.subject.name),
-        actions: [
-          if (linkedPreset != null)
-            IconButton(
-              key: const Key('sync-preset-subject-button'),
-              tooltip: S.syncFromDatabase,
-              onPressed:
-                  _syncingPreset ? null : () => _syncPreset(linkedPreset),
-              icon: _syncingPreset
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.sync),
-            ),
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: FilledButton.tonalIcon(
-              key: const Key('study-subject-button'),
-              onPressed: _studySubject,
-              icon: const Icon(Icons.play_arrow),
-              label: Text(S.studySubject),
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(116),
+        child: Material(
+          color: colorScheme.surface,
+          elevation: 0,
+          child: SafeArea(
+            bottom: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Row 1: [Home (small)]  [+ Kitap (large)]  [+ Karta (large)]  [🔍 Search]
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 6, 12, 4),
+                  child: Row(
+                    children: [
+                      IconButton.outlined(
+                        key: const Key('home-nav-button'),
+                        tooltip: S.homeTooltip,
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.home_outlined, size: 20),
+                        onPressed: () => Navigator.of(context)
+                            .popUntil((route) => route.isFirst),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: FilledButton.tonalIcon(
+                          key: const Key('fab-add-book'),
+                          onPressed: _add,
+                          icon: const Icon(Icons.add, size: 18),
+                          label: Text(
+                            S.addBook,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: FilledButton.icon(
+                          key: const Key('add-card-in-subject-button'),
+                          onPressed: _quickAddCardInSubject,
+                          icon: const Icon(Icons.add, size: 18),
+                          label: Text(
+                            S.addFlashcard,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton.filledTonal(
+                        key: const Key('search-subject-cards-button'),
+                        tooltip: S.searchCards,
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.search, size: 20),
+                        onPressed: _searchSubjectCards,
+                      ),
+                    ],
+                  ),
+                ),
+                // Row 2: [← Back] Subject Name + [🔄 Sinxronlaw]
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 0, 8, 4),
+                  child: Row(
+                    children: [
+                      if (canPop) const BackButton(),
+                      if (!canPop) const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          widget.subject.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                        ),
+                      ),
+                      if (linkedPreset != null)
+                        IconButton(
+                          key: const Key('sync-preset-subject-button'),
+                          tooltip: S.syncFromDatabase,
+                          visualDensity: VisualDensity.compact,
+                          onPressed: _syncingPreset
+                              ? null
+                              : () => _syncPreset(linkedPreset),
+                          icon: _syncingPreset
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.sync),
+                        ),
+                    ],
+                  ),
+                ),
+                Divider(height: 1, color: colorScheme.outlineVariant),
+              ],
             ),
           ),
-        ],
+        ),
       ),
       body: CenteredBody(
         child: AsyncView<_CatalogPayload<Book>>(
@@ -614,11 +798,21 @@ class _BooksScreenState extends State<BooksScreen> {
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        key: const Key('fab-add-book'),
-        onPressed: _add,
-        icon: const Icon(Icons.add),
-        label: Text(S.addBook),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        child: SizedBox(
+          height: 46,
+          child: FilledButton.tonalIcon(
+            key: const Key('study-subject-button'),
+            onPressed: _studySubject,
+            icon: const Icon(Icons.play_arrow),
+            label: Text(
+              S.studySubject,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -723,6 +917,28 @@ class _TopicsScreenState extends State<TopicsScreen> {
     if (mounted) _reload();
   }
 
+  Future<void> _quickAddCardInBook() async {
+    final db = AppScope.of(context);
+    final resolved = await QuickCardDestinationResolver.resolveForQuickAdd(
+      db,
+      book: widget.book,
+    );
+    if (!mounted) return;
+    final saved = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute<bool>(
+        builder: (_) => FlashcardEditorScreen(
+          deckId: resolved.initial.deckId,
+          initialDestination: resolved.initial,
+          availableDestinations: resolved.all,
+        ),
+      ),
+    );
+    if (mounted && (saved == true || resolved.all.isNotEmpty)) {
+      _reload();
+    }
+  }
+
   Future<void> _searchBookCards() async {
     await Navigator.push<void>(
       context,
@@ -749,26 +965,95 @@ class _TopicsScreenState extends State<TopicsScreen> {
   @override
   Widget build(BuildContext context) {
     AppScope.languageOf(context);
+    final colorScheme = Theme.of(context).colorScheme;
+    final canPop = Navigator.canPop(context);
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.book.name),
-        actions: [
-          IconButton(
-            key: const Key('search-book-cards-button'),
-            tooltip: S.searchCards,
-            icon: const Icon(Icons.search),
-            onPressed: _searchBookCards,
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: FilledButton.tonalIcon(
-              key: const Key('study-book-button'),
-              onPressed: _studyBook,
-              icon: const Icon(Icons.play_arrow),
-              label: Text(S.studyBook),
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(116),
+        child: Material(
+          color: colorScheme.surface,
+          elevation: 0,
+          child: SafeArea(
+            bottom: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Row 1: [Home (small)]  [+ Tema (large)]  [+ Karta (large)]  [🔍 Search]
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 6, 12, 4),
+                  child: Row(
+                    children: [
+                      IconButton.outlined(
+                        key: const Key('home-nav-button'),
+                        tooltip: S.homeTooltip,
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.home_outlined, size: 20),
+                        onPressed: () => Navigator.of(context)
+                            .popUntil((route) => route.isFirst),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: FilledButton.tonalIcon(
+                          key: const Key('fab-add-topic'),
+                          onPressed: _add,
+                          icon: const Icon(Icons.add, size: 18),
+                          label: Text(
+                            S.addTopic,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: FilledButton.icon(
+                          key: const Key('add-card-in-book-button'),
+                          onPressed: _quickAddCardInBook,
+                          icon: const Icon(Icons.add, size: 18),
+                          label: Text(
+                            S.addFlashcard,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton.filledTonal(
+                        key: const Key('search-book-cards-button'),
+                        tooltip: S.searchCards,
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.search, size: 20),
+                        onPressed: _searchBookCards,
+                      ),
+                    ],
+                  ),
+                ),
+                // Row 2: [← Back] Book Name
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 0, 8, 4),
+                  child: Row(
+                    children: [
+                      if (canPop) const BackButton(),
+                      if (!canPop) const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          widget.book.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Divider(height: 1, color: colorScheme.outlineVariant),
+              ],
             ),
           ),
-        ],
+        ),
       ),
       body: CenteredBody(
         child: AsyncView<_CatalogPayload<Topic>>(
@@ -798,11 +1083,21 @@ class _TopicsScreenState extends State<TopicsScreen> {
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        key: const Key('fab-add-topic'),
-        onPressed: _add,
-        icon: const Icon(Icons.add),
-        label: Text(S.addTopic),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        child: SizedBox(
+          height: 46,
+          child: FilledButton.tonalIcon(
+            key: const Key('study-book-button'),
+            onPressed: _studyBook,
+            icon: const Icon(Icons.play_arrow),
+            label: Text(
+              S.studyBook,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ),
       ),
     );
   }

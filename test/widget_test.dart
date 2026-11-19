@@ -456,4 +456,89 @@ Klass,Tema,Gilt sóz,Anıqlama / Túsinik,Sáne,,Assosaciya
       isFalse,
     );
   });
+
+  testWidgets('Quick Add card from Home, Subject, and Book screens, Home nav button, and Move card to another topic',
+      (tester) async {
+    await tester.pumpWidget(YadlaApp(openDatabase: () async => db));
+    await tester.pumpAndSettle();
+
+    // 1. On empty Home screen, tap "+ Tez karta" (on the right of "+ Pán")
+    final addSubjectPos = tester.getCenter(find.byKey(const Key('fab-add-subject')));
+    final quickAddPos = tester.getCenter(find.byKey(const Key('fab-quick-add-card')));
+    expect(addSubjectPos.dx, lessThan(quickAddPos.dx));
+
+    await tester.tap(find.byKey(const Key('fab-quick-add-card')));
+    await tester.pumpAndSettle();
+
+    // Auto-creates "Tez jazbalar ➔ Ulıwma ➔ Tez jazbalar" destination
+    expect(find.byKey(const Key('card-destination-selector')), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('card-target')), 'Algoritm');
+    await tester.enterText(
+      find.byKey(const Key('card-definition')),
+      'Izbe-iz buyrıqlar toplamı',
+    );
+    await tester.tap(find.byKey(const Key('card-save')));
+    await tester.pumpAndSettle();
+
+    // "Tez jazbalar" subject now appears on Home screen with 1 card
+    expect(find.text(S.quickNotesSubjectName), findsOneWidget);
+
+    // 2. Create a second Subject "Tariyx" and tap "+ Karta qosıw" directly from BooksScreen
+    await tester.tap(find.byKey(const Key('fab-add-subject')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('field-name')), 'Tariyx');
+    await tester.tap(find.byKey(const Key('dialog-save')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Tariyx'));
+    await tester.pumpAndSettle();
+
+    // Verify BooksScreen top bar has Home, +Kitap, +Karta, and Search on right; Study at bottom
+    expect(find.byKey(const Key('home-nav-button')), findsOneWidget);
+    expect(find.byKey(const Key('fab-add-book')), findsOneWidget);
+    expect(find.byKey(const Key('add-card-in-subject-button')), findsOneWidget);
+    expect(find.byKey(const Key('search-subject-cards-button')), findsOneWidget);
+    expect(find.byKey(const Key('study-subject-button')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('add-card-in-subject-button')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('card-target')), 'Amir Temur');
+    await tester.enterText(find.byKey(const Key('card-definition')), '1336-jıl');
+    await tester.tap(find.byKey(const Key('card-save')));
+    await tester.pumpAndSettle();
+
+    // Tap Home button to jump straight back to SubjectsScreen
+    await tester.tap(find.byKey(const Key('home-nav-button')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('fab-quick-add-card')), findsOneWidget);
+
+    // 3. Open "Tez jazbalar" -> Book -> Topic -> move "Algoritm" card to "Tariyx"
+    await tester.tap(find.text(S.quickNotesSubjectName));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(S.generalDefaultName));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(S.quickNotesSubjectName));
+    await tester.pumpAndSettle();
+
+    final quickCards = await db.flashcards.listAll();
+    final algoritmCard =
+        quickCards.firstWhere((c) => c.targetText == 'Algoritm');
+
+    await tester.tap(find.byKey(Key('card-status-menu-${algoritmCard.id}')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(Key('move-card-${algoritmCard.id}')));
+    await tester.pumpAndSettle();
+
+    // Pick the Tariyx topic in the destination dialog
+    final tariyxSubj = (await db.subjects.getAll())
+        .firstWhere((s) => s.name == 'Tariyx');
+    final tariyxBook = (await db.books.listBySubject(tariyxSubj.id)).single;
+    final tariyxTopic = (await db.topics.listByBook(tariyxBook.id)).single;
+
+    await tester.tap(find.byKey(Key('destination-option-${tariyxTopic.id}')));
+    await tester.pumpAndSettle();
+
+    // Card is moved out of Tez jazbalar and into Tariyx
+    expect(await db.flashcards.listBySubject(tariyxSubj.id), hasLength(2));
+  });
 }

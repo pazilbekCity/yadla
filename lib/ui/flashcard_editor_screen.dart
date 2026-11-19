@@ -1,12 +1,271 @@
 import 'package:flutter/material.dart';
 
+import '../data/database/app_database.dart';
 import '../data/database/app_database_exception.dart';
+import '../data/models/catalog_models.dart';
 import '../data/models/flashcard.dart';
 import '../data/services/image_storage_service.dart';
 import 'app_scope.dart';
 import 'common.dart';
 import 'flashcard_image_view.dart';
 import 'strings.dart';
+
+/// Represents a target `Subject > Book > Topic` (and its default `Deck`) where
+/// a flashcard can be created or moved.
+class CardDestinationOption {
+  const CardDestinationOption({
+    required this.subjectId,
+    required this.subjectName,
+    required this.bookId,
+    required this.bookName,
+    required this.topicId,
+    required this.topicName,
+    required this.deckId,
+  });
+
+  final String subjectId;
+  final String subjectName;
+  final String bookId;
+  final String bookName;
+  final String topicId;
+  final String topicName;
+  final String deckId;
+
+  String get fullLabel => '$subjectName ➔ $bookName ➔ $topicName';
+}
+
+/// Resolves available [CardDestinationOption]s across the database and auto-creates
+/// a default fallback topic (`📌 Tez jazbalar` or `Ulıwma`) when the user uses
+/// Quick Add (`+ Tez karta` / `+ Karta qosıw`) before creating a full hierarchy.
+class QuickCardDestinationResolver {
+  const QuickCardDestinationResolver._();
+
+  static const lastActiveTopicSettingKey = 'last_active_topic_id';
+
+  static Future<void> recordLastActiveTopic(
+    AppDatabase db,
+    String topicId,
+  ) async {
+    try {
+      await db.settings.set(lastActiveTopicSettingKey, topicId);
+    } catch (_) {
+      // Non-fatal if settings write fails.
+    }
+  }
+
+  /// Resolves the initial destination and all available destinations when
+  /// tapping `+ Tez karta` or `+ Karta qosıw` from:
+  /// - Home screen (no [subject] or [book] specified)
+  /// - Subject screen ([subject] specified)
+  /// - Book screen ([book] specified)
+  static Future<({
+    CardDestinationOption initial,
+    List<CardDestinationOption> all,
+  })> resolveForQuickAdd(
+    AppDatabase db, {
+    Subject? subject,
+    Book? book,
+  }) async {
+    final lastTopicId =
+        (await db.settings.get(lastActiveTopicSettingKey))?.value;
+
+    if (book != null) {
+      // Ensure this book has at least one topic
+      var topics = await db.topics.listByBook(book.id);
+      if (topics.isEmpty) {
+        final created = await db.topics.create(
+          bookId: book.id,
+          name: S.generalDefaultName,
+        );
+        topics = [created];
+      }
+    } else if (subject != null) {
+      // Ensure this subject has at least one book and one topic
+      var books = await db.books.listBySubject(subject.id);
+      if (books.isEmpty) {
+        final createdBook = await db.books.create(
+          subjectId: subject.id,
+          name: S.generalDefaultName,
+        );
+        books = [createdBook];
+      }
+      var hasAnyTopic = false;
+      for (final b in books) {
+        final tList = await db.topics.listByBook(b.id);
+        if (tList.isNotEmpty) {
+          hasAnyTopic = true;
+          break;
+        }
+      }
+      if (!hasAnyTopic) {
+        await db.topics.create(
+          bookId: books.first.id,
+          name: S.generalDefaultName,
+        );
+      }
+    }
+
+    var allOptions = await loadAllDestinations(db);
+    if (allOptions.isEmpty) {
+      // Database has no topics yet -> auto-create "Tez jazbalar" hierarchy
+      final quickSubj = await _getOrCreateQuickNotesSubject(db);
+      var books = await db.books.listBySubject(quickSubj.id);
+      if (books.isEmpty) {
+        books = [
+          await db.books.create(
+            subjectId: quickSubj.id,
+            name: S.generalDefaultName,
+          ),
+        ];
+      }
+      var topics = await db.topics.listByBook(books.first.id);
+      if (topics.isEmpty) {
+        topics = [
+          await db.topics.create(
+            bookId: books.first.id,
+            name: S.quickNotesSubjectName,
+          ),
+        ];
+      }
+      allOptions = await loadAllDestinations(db);
+    }
+
+    CardDestinationOption? chosen;
+    if (book != null) {
+      final inBook = allOptions.where((o) => o.bookId == book.id).toList();
+      if (lastTopicId != null) {
+        for (final o in inBook) {
+          if (o.topicId == lastTopicId) {
+            chosen = o;
+            break;
+          }
+        }
+      }
+      chosen ??= inBook.isNotEmpty ? inBook.first : allOptions.first;
+    } else if (subject != null) {
+      final inSubj =
+          allOptions.where((o) => o.subjectId == subject.id).toList();
+      if (lastTopicId != null) {
+        for (final o in inSubj) {
+          if (o.topicId == lastTopicId) {
+            chosen = o;
+            break;
+          }
+        }
+      }
+      chosen ??= inSubj.isNotEmpty ? inSubj.first : allOptions.first;
+    } else {
+      if (lastTopicId != null) {
+        for (final o in allOptions) {
+          if (o.topicId == lastTopicId) {
+            chosen = o;
+            break;
+          }
+        }
+      }
+      chosen ??= allOptions.first;
+    }
+
+    return (initial: chosen, all: allOptions);
+  }
+
+  static Future<Subject> _getOrCreateQuickNotesSubject(AppDatabase db) async {
+    final subjects = await db.subjects.getAll();
+    final targetLower = S.quickNotesSubjectName.toLowerCase();
+    for (final s in subjects) {
+      if (s.name.trim().toLowerCase() == targetLower) {
+        return s;
+      }
+    }
+    return db.subjects.create(name: S.quickNotesSubjectName);
+  }
+
+  /// Loads every existing `Subject > Book > Topic` in the database and ensures
+  /// each topic has a default `Deck`.
+  static Future<List<CardDestinationOption>> loadAllDestinations(
+    AppDatabase db,
+  ) async {
+    final result = <CardDestinationOption>[];
+    final subjects = await db.subjects.getAll();
+    for (final s in subjects) {
+      final books = await db.books.listBySubject(s.id);
+      for (final b in books) {
+        final topics = await db.topics.listByBook(b.id);
+        for (final t in topics) {
+          final deck = await db.decks.getOrCreateDefaultForTopic(
+            t.id,
+            defaultName: t.name,
+          );
+          result.add(
+            CardDestinationOption(
+              subjectId: s.id,
+              subjectName: s.name,
+              bookId: b.id,
+              bookName: b.name,
+              topicId: t.id,
+              topicName: t.name,
+              deckId: deck.id,
+            ),
+          );
+        }
+      }
+    }
+    return result;
+  }
+}
+
+/// Shows a dialog allowing the user to pick a target `Subject > Book > Topic`
+/// destination (used both in Quick-Add and when moving an existing flashcard).
+Future<CardDestinationOption?> showSelectDestinationDialog(
+  BuildContext context, {
+  required List<CardDestinationOption> options,
+  String? currentTopicId,
+}) {
+  return showDialog<CardDestinationOption>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(S.selectDestinationTopic),
+      content: SizedBox(
+        width: 400,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 360),
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemCount: options.length,
+            separatorBuilder: (_, _) => const Divider(height: 1),
+            itemBuilder: (_, index) {
+              final opt = options[index];
+              final isSelected = opt.topicId == currentTopicId;
+              return ListTile(
+                key: Key('destination-option-${opt.topicId}'),
+                dense: true,
+                selected: isSelected,
+                leading: Icon(
+                  isSelected
+                      ? Icons.radio_button_checked
+                      : Icons.folder_outlined,
+                  size: 20,
+                ),
+                title: Text(
+                  opt.topicName,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                subtitle: Text('${opt.subjectName} ➔ ${opt.bookName}'),
+                onTap: () => Navigator.pop(ctx, opt),
+              );
+            },
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: Text(S.cancel),
+        ),
+      ],
+    ),
+  );
+}
 
 /// Full-screen form for creating or editing a [Flashcard].
 class FlashcardEditorScreen extends StatefulWidget {
@@ -16,12 +275,16 @@ class FlashcardEditorScreen extends StatefulWidget {
     this.existing,
     this.pickImageFile,
     this.imageStorage = const ImageStorageService(),
+    this.initialDestination,
+    this.availableDestinations = const [],
   });
 
   final String deckId;
   final Flashcard? existing;
   final ImageFilePicker? pickImageFile;
   final ImageStorageService imageStorage;
+  final CardDestinationOption? initialDestination;
+  final List<CardDestinationOption> availableDestinations;
 
   @override
   State<FlashcardEditorScreen> createState() => _FlashcardEditorScreenState();
@@ -39,6 +302,7 @@ class _FlashcardEditorScreenState extends State<FlashcardEditorScreen> {
       TextEditingController(text: widget.existing?.imagePath ?? '');
   late ImagePlacement _placement =
       widget.existing?.imagePlacement ?? ImagePlacement.front;
+  late CardDestinationOption? _selectedDestination = widget.initialDestination;
   bool _associationExpanded = true;
   bool _busy = false;
   String? _error;
@@ -101,23 +365,37 @@ class _FlashcardEditorScreenState extends State<FlashcardEditorScreen> {
     });
   }
 
+  Future<void> _changeDestination() async {
+    if (_busy || widget.availableDestinations.isEmpty) return;
+    final picked = await showSelectDestinationDialog(
+      context,
+      options: widget.availableDestinations,
+      currentTopicId: _selectedDestination?.topicId,
+    );
+    if (picked != null && mounted) {
+      setState(() => _selectedDestination = picked);
+    }
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() {
       _busy = true;
       _error = null;
     });
-    final repo = AppScope.of(context).flashcards;
+    final db = AppScope.of(context);
+    final repo = db.flashcards;
     final target = _target.text.trim();
     final assoc = _association.text.trim();
     final def = _definition.text.trim();
     final img = _image.text.trim();
+    final targetDeckId = _selectedDestination?.deckId ?? widget.deckId;
 
     try {
       final existing = widget.existing;
       if (existing == null) {
         await repo.create(
-          deckId: widget.deckId,
+          deckId: targetDeckId,
           targetText: target,
           associationText: assoc.isEmpty ? null : assoc,
           definitionText: def.isEmpty ? null : def,
@@ -127,6 +405,7 @@ class _FlashcardEditorScreenState extends State<FlashcardEditorScreen> {
       } else {
         await repo.update(
           existing.copyWith(
+            deckId: targetDeckId,
             targetText: target,
             associationText: assoc,
             clearAssociation: assoc.isEmpty,
@@ -136,6 +415,12 @@ class _FlashcardEditorScreenState extends State<FlashcardEditorScreen> {
             clearImage: img.isEmpty,
             imagePlacement: _placement,
           ),
+        );
+      }
+      if (_selectedDestination != null) {
+        await QuickCardDestinationResolver.recordLastActiveTopic(
+          db,
+          _selectedDestination!.topicId,
         );
       }
       if (mounted) Navigator.pop(context, true);
@@ -182,6 +467,72 @@ class _FlashcardEditorScreenState extends State<FlashcardEditorScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   children: [
+                    if (_selectedDestination != null) ...[
+                      InkWell(
+                        key: const Key('card-destination-selector'),
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: widget.availableDestinations.length > 1
+                            ? _changeDestination
+                            : null,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .primaryContainer
+                                .withValues(alpha: 0.45),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color:
+                                  Theme.of(context).colorScheme.outlineVariant,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.place_outlined,
+                                size: 18,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                '${S.cardDestinationLabel} ',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelMedium
+                                    ?.copyWith(fontWeight: FontWeight.w600),
+                              ),
+                              Expanded(
+                                child: Text(
+                                  _selectedDestination!.fullLabel,
+                                  key: const Key('card-destination-label'),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .labelLarge
+                                      ?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                ),
+                              ),
+                              if (widget.availableDestinations.length > 1)
+                                Icon(
+                                  Icons.arrow_drop_down,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                     // 1. Gilt sóz (Target word)
                     TextFormField(
                       key: const Key('card-target'),
