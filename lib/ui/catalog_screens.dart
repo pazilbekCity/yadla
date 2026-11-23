@@ -652,33 +652,49 @@ class _BooksScreenState extends State<BooksScreen> {
                         onPressed: () => Navigator.of(context)
                             .popUntil((route) => route.isFirst),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       Expanded(
                         child: FilledButton.tonalIcon(
                           key: const Key('fab-add-book'),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            side: BorderSide(color: colorScheme.outlineVariant),
+                          ),
                           onPressed: _add,
-                          icon: const Icon(Icons.add, size: 18),
-                          label: Text(
-                            S.addBook,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          icon: const Icon(Icons.add, size: 17),
+                          label: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              S.addBook,
+                              maxLines: 1,
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w600),
+                            ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       Expanded(
-                        child: FilledButton.icon(
+                        child: FilledButton.tonalIcon(
                           key: const Key('add-card-in-subject-button'),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            side: BorderSide(color: colorScheme.outlineVariant),
+                          ),
                           onPressed: _quickAddCardInSubject,
-                          icon: const Icon(Icons.add, size: 18),
-                          label: Text(
-                            S.addFlashcard,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          icon: const Icon(Icons.add, size: 17),
+                          label: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              S.addFlashcard,
+                              maxLines: 1,
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w600),
+                            ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       IconButton.filledTonal(
                         key: const Key('search-subject-cards-button'),
                         tooltip: S.searchCards,
@@ -802,14 +818,14 @@ class _BooksScreenState extends State<BooksScreen> {
         top: false,
         minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
         child: SizedBox(
-          height: 46,
-          child: FilledButton.tonalIcon(
+          height: 48,
+          child: FilledButton.icon(
             key: const Key('study-subject-button'),
             onPressed: _studySubject,
-            icon: const Icon(Icons.play_arrow),
+            icon: const Icon(Icons.play_arrow_rounded),
             label: Text(
               S.studySubject,
-              style: const TextStyle(fontWeight: FontWeight.w600),
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
             ),
           ),
         ),
@@ -991,33 +1007,49 @@ class _TopicsScreenState extends State<TopicsScreen> {
                         onPressed: () => Navigator.of(context)
                             .popUntil((route) => route.isFirst),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       Expanded(
                         child: FilledButton.tonalIcon(
                           key: const Key('fab-add-topic'),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            side: BorderSide(color: colorScheme.outlineVariant),
+                          ),
                           onPressed: _add,
-                          icon: const Icon(Icons.add, size: 18),
-                          label: Text(
-                            S.addTopic,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          icon: const Icon(Icons.add, size: 17),
+                          label: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              S.addTopic,
+                              maxLines: 1,
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w600),
+                            ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       Expanded(
-                        child: FilledButton.icon(
+                        child: FilledButton.tonalIcon(
                           key: const Key('add-card-in-book-button'),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            side: BorderSide(color: colorScheme.outlineVariant),
+                          ),
                           onPressed: _quickAddCardInBook,
-                          icon: const Icon(Icons.add, size: 18),
-                          label: Text(
-                            S.addFlashcard,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          icon: const Icon(Icons.add, size: 17),
+                          label: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              S.addFlashcard,
+                              maxLines: 1,
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w600),
+                            ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       IconButton.filledTonal(
                         key: const Key('search-book-cards-button'),
                         tooltip: S.searchCards,
@@ -1087,14 +1119,14 @@ class _TopicsScreenState extends State<TopicsScreen> {
         top: false,
         minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
         child: SizedBox(
-          height: 46,
-          child: FilledButton.tonalIcon(
+          height: 48,
+          child: FilledButton.icon(
             key: const Key('study-book-button'),
             onPressed: _studyBook,
-            icon: const Icon(Icons.play_arrow),
+            icon: const Icon(Icons.play_arrow_rounded),
             label: Text(
               S.studyBook,
-              style: const TextStyle(fontWeight: FontWeight.w600),
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
             ),
           ),
         ),
@@ -1290,10 +1322,12 @@ class _CatalogList<T> extends StatelessWidget {
                 ),
               ListTile(
                 contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    const EdgeInsets.fromLTRB(14, 6, 8, 6),
                 leading: leadingBuilder?.call(context, item),
                 title: Text(
                   title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
@@ -1310,7 +1344,11 @@ class _CatalogList<T> extends StatelessWidget {
                           ],
                           if (hasSub) ...[
                             const SizedBox(height: 4),
-                            Text(sub),
+                            Text(
+                              sub,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ],
                         ],
                       ),
@@ -1323,23 +1361,40 @@ class _CatalogList<T> extends StatelessWidget {
                         key: studyKeyOf?.call(item),
                         tooltip: studyTooltip ?? S.study,
                         visualDensity: VisualDensity.compact,
-                        icon: const Icon(Icons.play_arrow),
+                        style: IconButton.styleFrom(
+                          backgroundColor: colorScheme.primaryContainer,
+                          foregroundColor: colorScheme.primary,
+                        ),
+                        icon: const Icon(Icons.play_arrow_rounded, size: 20),
                         onPressed: () => onStudy!(item),
                       ),
                     IconButton(
                       tooltip: S.edit,
                       visualDensity: VisualDensity.compact,
-                      icon: const Icon(Icons.edit_outlined),
+                      padding: const EdgeInsets.all(6),
+                      constraints: const BoxConstraints(),
+                      icon: Icon(
+                        Icons.edit_outlined,
+                        size: 19,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
                       onPressed: () => onEdit(item),
                     ),
                     IconButton(
                       tooltip: S.delete,
                       visualDensity: VisualDensity.compact,
-                      icon: const Icon(Icons.delete_outline),
+                      padding: const EdgeInsets.all(6),
+                      constraints: const BoxConstraints(),
+                      icon: Icon(
+                        Icons.delete_outline,
+                        size: 19,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
                       onPressed: () => onDelete(item),
                     ),
                     Icon(
                       Icons.chevron_right,
+                      size: 20,
                       color: colorScheme.onSurfaceVariant,
                     ),
                   ],
@@ -2007,7 +2062,7 @@ class _DailyRetentionBar extends StatelessWidget {
           Expanded(
             child: Container(
               key: const Key('home-streak-badge'),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
               decoration: BoxDecoration(
                 color: streakBg,
                 borderRadius: BorderRadius.circular(10),
@@ -2023,16 +2078,18 @@ class _DailyRetentionBar extends StatelessWidget {
                     size: 18,
                     color: streakColor,
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 5),
                   Flexible(
-                    child: Text(
-                      S.streakDaysBadge(streakDays),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                            color: streakColor,
-                            fontWeight: FontWeight.w600,
-                          ),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        S.streakDaysBadge(streakDays),
+                        maxLines: 1,
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                              color: streakColor,
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
                     ),
                   ),
                 ],
@@ -2043,7 +2100,9 @@ class _DailyRetentionBar extends StatelessWidget {
           // 2. 📅 Due Today Pill (tappable when dueTodayCount > 0)
           Expanded(
             child: Material(
-              color: colorScheme.primaryContainer.withValues(alpha: 0.65),
+              color: dueTodayCount > 0
+                  ? colorScheme.secondaryContainer.withValues(alpha: 0.85)
+                  : colorScheme.primaryContainer.withValues(alpha: 0.65),
               borderRadius: BorderRadius.circular(10),
               child: InkWell(
                 key: const Key('home-due-today-badge'),
@@ -2051,10 +2110,14 @@ class _DailyRetentionBar extends StatelessWidget {
                 onTap: onTapDueToday,
                 child: Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: colorScheme.outlineVariant),
+                    border: Border.all(
+                      color: dueTodayCount > 0
+                          ? colorScheme.secondary.withValues(alpha: 0.45)
+                          : colorScheme.outlineVariant,
+                    ),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -2062,19 +2125,27 @@ class _DailyRetentionBar extends StatelessWidget {
                       Icon(
                         Icons.event_available_outlined,
                         size: 18,
-                        color: colorScheme.onPrimaryContainer,
+                        color: dueTodayCount > 0
+                            ? colorScheme.onSecondaryContainer
+                            : colorScheme.onPrimaryContainer,
                       ),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: 5),
                       Flexible(
-                        child: Text(
-                          S.dueTodayBadge(dueTodayCount),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style:
-                              Theme.of(context).textTheme.labelLarge?.copyWith(
-                                    color: colorScheme.onPrimaryContainer,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            S.dueTodayBadge(dueTodayCount),
+                            maxLines: 1,
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelLarge
+                                ?.copyWith(
+                                  color: dueTodayCount > 0
+                                      ? colorScheme.onSecondaryContainer
+                                      : colorScheme.onPrimaryContainer,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
                         ),
                       ),
                     ],

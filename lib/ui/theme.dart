@@ -6,35 +6,36 @@ import 'package:flutter/material.dart';
 class YadlaTheme {
   const YadlaTheme._();
 
-  // Day (Light) palette — warm alabaster & deep slate
-  static const Color _lightBackground = Color(0xFFF4F5F7);
+  // Day (Light) palette — harmonized with the YADLA logo (deep Karakalpaki blue,
+  // emerald green, warm ivory/sand, and crisp card contrast).
+  static const Color _lightBackground = Color(0xFFEEF2F6);
   static const Color _lightSurface = Color(0xFFFFFFFF);
-  static const Color _lightSurfaceContainer = Color(0xFFECEFF4);
-  static const Color _lightPrimary = Color(0xFF334E68);
-  static const Color _lightPrimaryContainer = Color(0xFFDCE4EE);
-  static const Color _lightOnPrimaryContainer = Color(0xFF1E3246);
-  static const Color _lightSecondary = Color(0xFF52606D);
-  static const Color _lightSecondaryContainer = Color(0xFFE6E9EF);
-  static const Color _lightOnSecondaryContainer = Color(0xFF243B53);
-  static const Color _lightOutline = Color(0xFFCBD2D9);
-  static const Color _lightOutlineVariant = Color(0xFFDDE2E9);
-  static const Color _lightTextPrimary = Color(0xFF1F2933);
-  static const Color _lightTextSecondary = Color(0xFF52606D);
+  static const Color _lightSurfaceContainer = Color(0xFFE3EAF2);
+  static const Color _lightPrimary = Color(0xFF1D4E78);
+  static const Color _lightPrimaryContainer = Color(0xFFD6E4F0);
+  static const Color _lightOnPrimaryContainer = Color(0xFF0F2D4A);
+  static const Color _lightSecondary = Color(0xFF2D6A4F);
+  static const Color _lightSecondaryContainer = Color(0xFFDFF0E6);
+  static const Color _lightOnSecondaryContainer = Color(0xFF1B4332);
+  static const Color _lightOutline = Color(0xFFB8C4D0);
+  static const Color _lightOutlineVariant = Color(0xFFCFD8E3);
+  static const Color _lightTextPrimary = Color(0xFF16222F);
+  static const Color _lightTextSecondary = Color(0xFF4A5B6C);
 
-  // Night (Dark) palette — restful deep slate & muted steel
-  static const Color _darkBackground = Color(0xFF11161F);
-  static const Color _darkSurface = Color(0xFF1A2230);
-  static const Color _darkSurfaceContainer = Color(0xFF222C3C);
-  static const Color _darkPrimary = Color(0xFF8DA8C7);
-  static const Color _darkPrimaryContainer = Color(0xFF26384F);
-  static const Color _darkOnPrimaryContainer = Color(0xFFD9E4F2);
-  static const Color _darkSecondary = Color(0xFF9FB3C8);
-  static const Color _darkSecondaryContainer = Color(0xFF242F40);
-  static const Color _darkOnSecondaryContainer = Color(0xFFD9E2EC);
-  static const Color _darkOutline = Color(0xFF3E4C59);
-  static const Color _darkOutlineVariant = Color(0xFF2B3748);
-  static const Color _darkTextPrimary = Color(0xFFE4E7EB);
-  static const Color _darkTextSecondary = Color(0xFF9AA5B1);
+  // Night (Dark) palette — restful deep navy-slate & warm highlights
+  static const Color _darkBackground = Color(0xFF0F1622);
+  static const Color _darkSurface = Color(0xFF182232);
+  static const Color _darkSurfaceContainer = Color(0xFF212E42);
+  static const Color _darkPrimary = Color(0xFF7EB3E0);
+  static const Color _darkPrimaryContainer = Color(0xFF1F3A56);
+  static const Color _darkOnPrimaryContainer = Color(0xFFD9E9F7);
+  static const Color _darkSecondary = Color(0xFF74C69D);
+  static const Color _darkSecondaryContainer = Color(0xFF1E3A2F);
+  static const Color _darkOnSecondaryContainer = Color(0xFFD8F3DC);
+  static const Color _darkOutline = Color(0xFF3E4E63);
+  static const Color _darkOutlineVariant = Color(0xFF2B394D);
+  static const Color _darkTextPrimary = Color(0xFFE6ECF2);
+  static const Color _darkTextSecondary = Color(0xFF9AA8B8);
 
   static ThemeData light() {
     const colorScheme = ColorScheme.light(

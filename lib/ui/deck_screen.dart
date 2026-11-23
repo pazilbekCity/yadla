@@ -267,14 +267,22 @@ class _DeckScreenState extends State<DeckScreen> {
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: FilledButton.icon(
+                        child: FilledButton.tonalIcon(
                           key: const Key('fab-add-flashcard'),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            side: BorderSide(color: colorScheme.outlineVariant),
+                          ),
                           onPressed: _add,
                           icon: const Icon(Icons.add, size: 18),
-                          label: Text(
-                            S.addFlashcard,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          label: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              S.addFlashcard,
+                              maxLines: 1,
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w600),
+                            ),
                           ),
                         ),
                       ),
@@ -388,128 +396,196 @@ class _DeckScreenState extends State<DeckScreen> {
                               ),
                             )
                           : ListView.separated(
-                              padding: const EdgeInsets.only(bottom: 24),
+                              padding:
+                                  const EdgeInsets.fromLTRB(16, 10, 16, 24),
                               itemCount: filteredCards.length,
                               separatorBuilder: (_, _) =>
-                                  const Divider(height: 1),
+                                  const SizedBox(height: 8),
                               itemBuilder: (context, index) {
                                 final c = filteredCards[index];
                                 final subtitle =
                                     c.definitionText ?? c.associationText;
+                                final hasSubtitle =
+                                    subtitle != null && subtitle.isNotEmpty;
                                 final badge = _statusBadgeText(c.status);
                                 final hasPage = c.pageNumber != null &&
                                     c.pageNumber!.trim().isNotEmpty;
-                                return ListTile(
-                                  title: Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          c.targetText,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ),
-                                      if (hasPage)
-                                        Padding(
-                                          padding:
-                                              const EdgeInsets.only(left: 8),
-                                          child: _PageNumberBadge(
-                                            key: Key(
-                                                'card-page-badge-${c.id}'),
-                                            pageNumber: c.pageNumber!.trim(),
-                                          ),
-                                        ),
-                                      if (badge != null)
-                                        Padding(
-                                          padding:
-                                              const EdgeInsets.only(left: 8),
-                                          child: Chip(
-                                            key: Key(
-                                                'card-status-chip-${c.id}'),
-                                            label: Text(badge),
-                                            visualDensity:
-                                                VisualDensity.compact,
-                                          ),
-                                        ),
-                                    ],
+                                final isMastered =
+                                    c.status == CardStatus.mastered;
+                                final isDark = colorScheme.brightness ==
+                                    Brightness.dark;
+                                final cardColor = isMastered
+                                    ? (isDark
+                                        ? const Color(0xFF1D332B)
+                                        : const Color(0xFFF1F9F4))
+                                    : colorScheme.surface;
+                                final borderColor = isMastered
+                                    ? (isDark
+                                        ? const Color(0xFF40916C)
+                                        : const Color(0xFF95D5B2))
+                                    : colorScheme.outlineVariant;
+                                return Card(
+                                  color: cardColor,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    side: BorderSide(color: borderColor),
                                   ),
-                                  subtitle:
-                                      (subtitle == null || subtitle.isEmpty)
-                                          ? null
-                                          : Text(
-                                              subtitle,
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                  onTap: () => _preview(c),
-                                  trailing: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      PopupMenuButton<_CardMenuAction>(
-                                        key: Key('card-status-menu-${c.id}'),
-                                        icon: const Icon(Icons.tune_outlined),
-                                        onSelected: (action) {
-                                          switch (action) {
-                                            case _CardMenuAction.learning:
-                                              _changeStatus(
-                                                c,
-                                                CardStatus.learning,
-                                              );
-                                            case _CardMenuAction.mastered:
-                                              _changeStatus(
-                                                c,
-                                                CardStatus.mastered,
-                                              );
-                                            case _CardMenuAction.suspended:
-                                              _changeStatus(
-                                                c,
-                                                CardStatus.suspended,
-                                              );
-                                            case _CardMenuAction.moveToTopic:
-                                              _moveCard(c);
-                                          }
-                                        },
-                                        itemBuilder: (_) => [
-                                          if (c.status != CardStatus.learning)
-                                            PopupMenuItem(
-                                              value: _CardMenuAction.learning,
-                                              child: Text(S.restoreToLearning),
-                                            ),
-                                          if (c.status != CardStatus.mastered)
-                                            PopupMenuItem(
-                                              value: _CardMenuAction.mastered,
-                                              child: Text(S.markMastered),
-                                            ),
-                                          if (c.status != CardStatus.suspended)
-                                            PopupMenuItem(
-                                              value: _CardMenuAction.suspended,
-                                              child: Text(S.suspendCard),
-                                            ),
-                                          PopupMenuItem(
-                                            key: Key('move-card-${c.id}'),
-                                            value: _CardMenuAction.moveToTopic,
-                                            child: Text(S.moveCardToTopic),
+                                  child: ListTile(
+                                    contentPadding:
+                                        const EdgeInsets.fromLTRB(14, 6, 6, 6),
+                                    title: Text(
+                                      c.targetText,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    subtitle: (!hasSubtitle &&
+                                            !hasPage &&
+                                            badge == null)
+                                        ? null
+                                        : Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              if (hasSubtitle) ...[
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  subtitle,
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ],
+                                              if (hasPage || badge != null) ...[
+                                                const SizedBox(height: 6),
+                                                Wrap(
+                                                  spacing: 6,
+                                                  runSpacing: 4,
+                                                  crossAxisAlignment:
+                                                      WrapCrossAlignment.center,
+                                                  children: [
+                                                    if (hasPage)
+                                                      _PageNumberBadge(
+                                                        key: Key(
+                                                            'card-page-badge-${c.id}'),
+                                                        pageNumber: c
+                                                            .pageNumber!
+                                                            .trim(),
+                                                      ),
+                                                    if (badge != null)
+                                                      Chip(
+                                                        key: Key(
+                                                            'card-status-chip-${c.id}'),
+                                                        label: Text(badge),
+                                                        visualDensity:
+                                                            VisualDensity
+                                                                .compact,
+                                                        materialTapTargetSize:
+                                                            MaterialTapTargetSize
+                                                                .shrinkWrap,
+                                                      ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ],
                                           ),
-                                        ],
-                                      ),
-                                      IconButton(
-                                        tooltip: S.preview,
-                                        icon: const Icon(
-                                            Icons.visibility_outlined),
-                                        onPressed: () => _preview(c),
-                                      ),
-                                      IconButton(
-                                        tooltip: S.edit,
-                                        icon: const Icon(Icons.edit_outlined),
-                                        onPressed: () => _edit(c),
-                                      ),
-                                      IconButton(
-                                        tooltip: S.delete,
-                                        icon: const Icon(Icons.delete_outline),
-                                        onPressed: () => _delete(c),
-                                      ),
-                                    ],
+                                    onTap: () => _preview(c),
+                                    trailing: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        PopupMenuButton<_CardMenuAction>(
+                                          key: Key('card-status-menu-${c.id}'),
+                                          padding: const EdgeInsets.all(6),
+                                          constraints: const BoxConstraints(),
+                                          icon: const Icon(
+                                            Icons.tune_outlined,
+                                            size: 20,
+                                          ),
+                                          onSelected: (action) {
+                                            switch (action) {
+                                              case _CardMenuAction.learning:
+                                                _changeStatus(
+                                                  c,
+                                                  CardStatus.learning,
+                                                );
+                                              case _CardMenuAction.mastered:
+                                                _changeStatus(
+                                                  c,
+                                                  CardStatus.mastered,
+                                                );
+                                              case _CardMenuAction.suspended:
+                                                _changeStatus(
+                                                  c,
+                                                  CardStatus.suspended,
+                                                );
+                                              case _CardMenuAction.moveToTopic:
+                                                _moveCard(c);
+                                            }
+                                          },
+                                          itemBuilder: (_) => [
+                                            if (c.status != CardStatus.learning)
+                                              PopupMenuItem(
+                                                value: _CardMenuAction.learning,
+                                                child:
+                                                    Text(S.restoreToLearning),
+                                              ),
+                                            if (c.status != CardStatus.mastered)
+                                              PopupMenuItem(
+                                                value: _CardMenuAction.mastered,
+                                                child: Text(S.markMastered),
+                                              ),
+                                            if (c.status !=
+                                                CardStatus.suspended)
+                                              PopupMenuItem(
+                                                value:
+                                                    _CardMenuAction.suspended,
+                                                child: Text(S.suspendCard),
+                                              ),
+                                            PopupMenuItem(
+                                              key: Key('move-card-${c.id}'),
+                                              value:
+                                                  _CardMenuAction.moveToTopic,
+                                              child: Text(S.moveCardToTopic),
+                                            ),
+                                          ],
+                                        ),
+                                        IconButton(
+                                          tooltip: S.preview,
+                                          visualDensity: VisualDensity.compact,
+                                          padding: const EdgeInsets.all(5),
+                                          constraints: const BoxConstraints(),
+                                          icon: const Icon(
+                                            Icons.visibility_outlined,
+                                            size: 19,
+                                          ),
+                                          onPressed: () => _preview(c),
+                                        ),
+                                        IconButton(
+                                          tooltip: S.edit,
+                                          visualDensity: VisualDensity.compact,
+                                          padding: const EdgeInsets.all(5),
+                                          constraints: const BoxConstraints(),
+                                          icon: const Icon(
+                                            Icons.edit_outlined,
+                                            size: 19,
+                                          ),
+                                          onPressed: () => _edit(c),
+                                        ),
+                                        IconButton(
+                                          tooltip: S.delete,
+                                          visualDensity: VisualDensity.compact,
+                                          padding: const EdgeInsets.all(5),
+                                          constraints: const BoxConstraints(),
+                                          icon: const Icon(
+                                            Icons.delete_outline,
+                                            size: 19,
+                                          ),
+                                          onPressed: () => _delete(c),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 );
                               },
@@ -524,14 +600,14 @@ class _DeckScreenState extends State<DeckScreen> {
         top: false,
         minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
         child: SizedBox(
-          height: 46,
-          child: FilledButton.tonalIcon(
+          height: 48,
+          child: FilledButton.icon(
             key: const Key('study-deck-button'),
             onPressed: _study,
-            icon: const Icon(Icons.play_arrow),
+            icon: const Icon(Icons.play_arrow_rounded),
             label: Text(
               widget.topic != null ? S.studyTopic : S.studyDeck,
-              style: const TextStyle(fontWeight: FontWeight.w600),
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
             ),
           ),
         ),

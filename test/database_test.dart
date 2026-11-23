@@ -406,4 +406,40 @@ void main() {
           throwsA(dbError(DbErrorKind.downgrade)));
     });
   });
+
+  group('natural numeric ordering for books and topics', () {
+    test('sorts books (5-klass .. 11-klass) and topics (1-sabaq, 2-sabaq .. 20-sabaq) in natural numeric order',
+        () async {
+      final subj = await db.subjects.create(name: 'Informatika');
+      await db.books.create(subjectId: subj.id, name: '10-klass');
+      await db.books.create(subjectId: subj.id, name: '5-klass');
+      await db.books.create(subjectId: subj.id, name: '11-klass');
+      await db.books.create(subjectId: subj.id, name: '7-klass');
+
+      final books = await db.books.listBySubject(subj.id);
+      expect(
+        books.map((b) => b.name).toList(),
+        ['5-klass', '7-klass', '10-klass', '11-klass'],
+      );
+
+      final book7 = books.firstWhere((b) => b.name == '7-klass');
+      await db.topics.create(bookId: book7.id, name: '10-sabaq Joybar');
+      await db.topics.create(bookId: book7.id, name: '1-sabaq Tekst stilleri');
+      await db.topics.create(bookId: book7.id, name: '20-sabaq Maǵlıwmatlar');
+      await db.topics.create(bookId: book7.id, name: '2-sabaq Wrap text');
+      await db.topics.create(bookId: book7.id, name: '19-sabaq Modellestiriw');
+
+      final topics = await db.topics.listByBook(book7.id);
+      expect(
+        topics.map((t) => t.name).toList(),
+        [
+          '1-sabaq Tekst stilleri',
+          '2-sabaq Wrap text',
+          '10-sabaq Joybar',
+          '19-sabaq Modellestiriw',
+          '20-sabaq Maǵlıwmatlar',
+        ],
+      );
+    });
+  });
 }

@@ -1,5 +1,6 @@
 import 'package:yadla/data/database/app_database.dart';
 import 'package:yadla/data/models/flashcard.dart';
+import 'package:yadla/data/models/review_and_settings.dart';
 import 'package:yadla/data/services/preset_catalog_service.dart';
 import 'package:yadla/main.dart';
 import 'package:yadla/ui/app_scope.dart';
@@ -396,13 +397,22 @@ Klass,Tema,Gilt sóz,Anıqlama / Túsinik,Sáne,,Assosaciya
     );
     expect(subjectProgressBox.widthFactor, 0.5);
 
-    // Verify 🔥 Daily Streak (1 day), 📅 Due Today (1 remaining card), and 📢 Reklama/Daǵaza banner
+    // Verify 🔥 Daily Streak (1 day), 📅 Due Today (0 because unseen cards are excluded!), and 📢 Reklama/Daǵaza banner
     expect(find.byKey(const Key('home-streak-badge')), findsOneWidget);
     expect(find.text(S.streakDaysBadge(1)), findsOneWidget);
     expect(find.byKey(const Key('home-due-today-badge')), findsOneWidget);
-    expect(find.text(S.dueTodayBadge(1)), findsOneWidget);
+    expect(find.text(S.dueTodayBadge(0)), findsOneWidget);
     expect(find.byKey(const Key('promo-banner-card')), findsOneWidget);
     expect(find.text('«Bilim» oqıw orayı'), findsOneWidget);
+
+    // Once a card has been reviewed and its due_at has arrived, countDueCards becomes 1
+    await db.reviews.add(
+      flashcardId: restoredHeader.id,
+      rating: ReviewRating.again,
+      dueAt: DateTime.now().toUtc().subtract(const Duration(minutes: 1)),
+      intervalDays: 0,
+    );
+    expect(await db.flashcards.countDueCards(), 1);
 
     // Dismiss promo banner
     await tester.tap(find.byKey(const Key('dismiss-promo-banner')));

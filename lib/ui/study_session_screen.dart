@@ -302,6 +302,8 @@ class StudySessionScreen extends StatefulWidget {
 
 class _StudySessionScreenState extends State<StudySessionScreen> {
   Future<StudySessionQueue>? _sessionFuture;
+  Map<String, ({String subjectName, String bookName, String topicName})>
+      _deckContexts = const {};
   bool _submitting = false;
 
   @override
@@ -313,6 +315,7 @@ class _StudySessionScreenState extends State<StudySessionScreen> {
   Future<StudySessionQueue> _startNewSession() async {
     final db = AppScope.of(context);
     final items = await widget.loadPrioritizedCards(db);
+    _deckContexts = await db.flashcards.deckContextByDeckId();
     return StudySessionQueue.fromPrioritized(
       items,
       random: widget.random,
@@ -557,167 +560,299 @@ class _StudySessionScreenState extends State<StudySessionScreen> {
               ),
               Expanded(
                 child: CenteredBody(
-                  child: ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      // 1. Gilt sóz (Target word)
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Text(
-                                card.targetText,
-                                key: const Key('study-target-text'),
-                                style:
-                                    Theme.of(context).textTheme.headlineSmall,
-                                textAlign: TextAlign.center,
+                  child: Builder(
+                    builder: (context) {
+                      final colorScheme = Theme.of(context).colorScheme;
+                      final isDark = colorScheme.brightness == Brightness.dark;
+                      final deckCtx = _deckContexts[card.deckId];
+                      final hasContext = deckCtx != null &&
+                          (deckCtx.bookName.isNotEmpty ||
+                              deckCtx.topicName.isNotEmpty);
+                      final contextLabel = !hasContext
+                          ? null
+                          : (deckCtx.bookName == deckCtx.topicName ||
+                                  deckCtx.topicName.isEmpty)
+                              ? deckCtx.bookName
+                              : '${deckCtx.bookName} • ${deckCtx.topicName}';
+                      final answerCardBg = isDark
+                          ? const Color(0xFF1E293B)
+                          : const Color(0xFFFCFBF7);
+                      final answerCardBorder = isDark
+                          ? const Color(0xFF3B4D63)
+                          : const Color(0xFFE2D6BE);
+                      return ListView(
+                        padding: const EdgeInsets.all(16),
+                        children: [
+                          // 1. Gilt sóz (Target word / Question card)
+                          Card(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              side: BorderSide(
+                                color:
+                                    colorScheme.primary.withValues(alpha: 0.35),
+                                width: 1.2,
                               ),
-                              if (calcInterval != null) ...[
-                                const SizedBox(height: 10),
-                                Text(
-                                  S.calculatedNextReview(calcInterval),
-                                  key: const Key('study-calculated-interval'),
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
-                              if (showFrontImage) ...[
-                                const SizedBox(height: 16),
-                                FlashcardImageView(
-                                  key: const Key('study-image-front'),
-                                  path: card.imagePath!,
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ),
-                      // 2. Anıqlama (Definition) — shown after tapping "Juwaptı kórsetiw"
-                      if (step.revealed) ...[
-                        const SizedBox(height: 12),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton.icon(
-                            key: const Key('study-toggle-definition'),
-                            onPressed: () => setState(queue.toggleReveal),
-                            icon: const Icon(Icons.visibility_off_outlined,
-                                size: 18),
-                            label: Text(S.hideDefinition),
-                          ),
-                        ),
-                        Card(
-                          key: const Key('study-definition-card'),
-                          child: Padding(
-                            padding: const EdgeInsets.all(20),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Text(
-                                  (def == null || def.isEmpty)
-                                      ? S.noDefinition
-                                      : def,
-                                  key: const Key('study-definition-text'),
-                                  style: Theme.of(context).textTheme.bodyLarge,
-                                  textAlign: TextAlign.center,
-                                ),
-                                if (card.pageNumber != null &&
-                                    card.pageNumber!.trim().isNotEmpty) ...[
-                                  const SizedBox(height: 12),
-                                  Center(
-                                    child: Container(
-                                      key: const Key('study-page-badge'),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primaryContainer,
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            Icons.menu_book_outlined,
-                                            size: 14,
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .onPrimaryContainer,
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            S.bookPageBadge(
-                                              card.pageNumber!.trim(),
-                                            ),
+                            ),
+                            child: Padding(
+                              padding:
+                                  const EdgeInsets.fromLTRB(18, 14, 18, 20),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  if (contextLabel != null) ...[
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.folder_open_outlined,
+                                          size: 14,
+                                          color: colorScheme.primary,
+                                        ),
+                                        const SizedBox(width: 5),
+                                        Flexible(
+                                          child: Text(
+                                            contextLabel,
+                                            key: const Key(
+                                                'study-card-context'),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            textAlign: TextAlign.center,
                                             style: Theme.of(context)
                                                 .textTheme
                                                 .labelMedium
                                                 ?.copyWith(
-                                                  color: Theme.of(context)
-                                                      .colorScheme
-                                                      .onPrimaryContainer,
+                                                  color: colorScheme.primary,
                                                   fontWeight: FontWeight.w600,
                                                 ),
                                           ),
-                                        ],
-                                      ),
+                                        ),
+                                      ],
                                     ),
+                                    const SizedBox(height: 10),
+                                  ],
+                                  Text(
+                                    card.targetText,
+                                    key: const Key('study-target-text'),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .headlineSmall
+                                        ?.copyWith(fontWeight: FontWeight.w700),
+                                    textAlign: TextAlign.center,
                                   ),
+                                  if (calcInterval != null) ...[
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      S.calculatedNextReview(calcInterval),
+                                      key: const Key(
+                                          'study-calculated-interval'),
+                                      style:
+                                          Theme.of(context).textTheme.bodySmall,
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ],
+                                  if (showFrontImage) ...[
+                                    const SizedBox(height: 16),
+                                    FlashcardImageView(
+                                      key: const Key('study-image-front'),
+                                      path: card.imagePath!,
+                                    ),
+                                  ],
                                 ],
-                                if (showBackImage) ...[
-                                  const SizedBox(height: 16),
-                                  FlashcardImageView(
-                                    key: const Key('study-image-back'),
-                                    path: card.imagePath!,
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                      // 3. Assotsiaciya (Association) — 3rd in order, collapsible by user
-                      if (assoc != null && assoc.isNotEmpty) ...[
-                        const SizedBox(height: 16),
-                        OutlinedButton.icon(
-                          key: const Key('study-toggle-association'),
-                          onPressed: () => setState(queue.toggleAssociation),
-                          icon: Icon(
-                            step.associationExpanded
-                                ? Icons.expand_less
-                                : Icons.lightbulb_outline,
-                          ),
-                          label: Text(
-                            step.associationExpanded
-                                ? S.hideAssociation
-                                : S.showAssociation,
-                          ),
-                        ),
-                        if (step.associationExpanded) ...[
-                          const SizedBox(height: 8),
-                          Card(
-                            key: const Key('study-association-card'),
-                            color: Theme.of(context)
-                                .colorScheme
-                                .secondaryContainer
-                                .withValues(alpha: 0.5),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Text(
-                                assoc,
-                                key: const Key('study-association-text'),
-                                style: Theme.of(context).textTheme.bodyLarge,
-                                textAlign: TextAlign.center,
                               ),
                             ),
                           ),
+                          // 2. Anıqlama (Definition / Answer card) — shown after tapping "Juwaptı kórsetiw"
+                          if (step.revealed) ...[
+                            const SizedBox(height: 14),
+                            Card(
+                              key: const Key('study-definition-card'),
+                              color: answerCardBg,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                side: BorderSide(color: answerCardBorder),
+                              ),
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(18, 8, 12, 20),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: TextButton.icon(
+                                        key: const Key(
+                                            'study-toggle-definition'),
+                                        style: TextButton.styleFrom(
+                                          visualDensity: VisualDensity.compact,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
+                                        ),
+                                        onPressed: () =>
+                                            setState(queue.toggleReveal),
+                                        icon: const Icon(
+                                          Icons.visibility_off_outlined,
+                                          size: 16,
+                                        ),
+                                        label: Text(
+                                          S.hideDefinition,
+                                          style: const TextStyle(fontSize: 13),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Padding(
+                                      padding: const EdgeInsets.only(right: 6),
+                                      child: Text(
+                                        (def == null || def.isEmpty)
+                                            ? S.noDefinition
+                                            : def,
+                                        key: const Key('study-definition-text'),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyLarge
+                                            ?.copyWith(height: 1.45),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                    if (card.pageNumber != null &&
+                                        card.pageNumber!.trim().isNotEmpty) ...[
+                                      const SizedBox(height: 14),
+                                      Center(
+                                        child: Wrap(
+                                          spacing: 6,
+                                          runSpacing: 4,
+                                          alignment: WrapAlignment.center,
+                                          crossAxisAlignment:
+                                              WrapCrossAlignment.center,
+                                          children: [
+                                            if (deckCtx != null &&
+                                                deckCtx.bookName.isNotEmpty)
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                  horizontal: 10,
+                                                  vertical: 4,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: colorScheme
+                                                      .secondaryContainer,
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                                child: Text(
+                                                  deckCtx.bookName,
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .labelMedium
+                                                      ?.copyWith(
+                                                        color: colorScheme
+                                                            .onSecondaryContainer,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                      ),
+                                                ),
+                                              ),
+                                            Container(
+                                              key: const Key(
+                                                  'study-page-badge'),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                horizontal: 10,
+                                                vertical: 4,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: colorScheme
+                                                    .primaryContainer,
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(
+                                                    Icons.menu_book_outlined,
+                                                    size: 14,
+                                                    color: colorScheme
+                                                        .onPrimaryContainer,
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  Text(
+                                                    S.bookPageBadge(
+                                                      card.pageNumber!.trim(),
+                                                    ),
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .labelMedium
+                                                        ?.copyWith(
+                                                          color: colorScheme
+                                                              .onPrimaryContainer,
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                        ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                    if (showBackImage) ...[
+                                      const SizedBox(height: 16),
+                                      FlashcardImageView(
+                                        key: const Key('study-image-back'),
+                                        path: card.imagePath!,
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                          // 3. Assotsiaciya (Association) — 3rd in order, collapsible by user
+                          if (assoc != null && assoc.isNotEmpty) ...[
+                            const SizedBox(height: 16),
+                            OutlinedButton.icon(
+                              key: const Key('study-toggle-association'),
+                              onPressed: () =>
+                                  setState(queue.toggleAssociation),
+                              icon: Icon(
+                                step.associationExpanded
+                                    ? Icons.expand_less
+                                    : Icons.lightbulb_outline,
+                              ),
+                              label: Text(
+                                step.associationExpanded
+                                    ? S.hideAssociation
+                                    : S.showAssociation,
+                              ),
+                            ),
+                            if (step.associationExpanded) ...[
+                              const SizedBox(height: 8),
+                              Card(
+                                key: const Key('study-association-card'),
+                                color: colorScheme.secondaryContainer
+                                    .withValues(alpha: 0.5),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Text(
+                                    assoc,
+                                    key: const Key('study-association-text'),
+                                    style:
+                                        Theme.of(context).textTheme.bodyLarge,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ],
-                      ],
-                    ],
+                      );
+                    },
                   ),
                 ),
               ),
@@ -773,33 +908,53 @@ class _StudySessionScreenState extends State<StudySessionScreen> {
                 )
               else ...[
                 // Separate «Yad boldı» control above the four rating buttons
-                Container(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surface,
-                    border: Border(
-                      top: BorderSide(
-                        color: Theme.of(context).colorScheme.outlineVariant,
-                      ),
-                    ),
-                  ),
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                  child: CenteredBody(
-                    child: OutlinedButton.icon(
-                      key: const Key('mark-mastered-button'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor:
-                            Theme.of(context).colorScheme.primary,
-                        side: BorderSide(
-                          color: Theme.of(context).colorScheme.outline,
+                Builder(
+                  builder: (context) {
+                    final isDark =
+                        Theme.of(context).brightness == Brightness.dark;
+                    final masteredBg = isDark
+                        ? const Color(0xFF1A3529)
+                        : const Color(0xFFE7F5EC);
+                    final masteredFg = isDark
+                        ? const Color(0xFF74C69D)
+                        : const Color(0xFF236347);
+                    final masteredBorder = isDark
+                        ? const Color(0xFF40916C)
+                        : const Color(0xFF74C69D);
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface,
+                        border: Border(
+                          top: BorderSide(
+                            color:
+                                Theme.of(context).colorScheme.outlineVariant,
+                          ),
                         ),
                       ),
-                      onPressed:
-                          canActOnStep ? () => _markMastered(queue) : null,
-                      icon: const Icon(Icons.workspace_premium_outlined,
-                          size: 18),
-                      label: Text(S.markMastered),
-                    ),
-                  ),
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                      child: CenteredBody(
+                        child: OutlinedButton.icon(
+                          key: const Key('mark-mastered-button'),
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: masteredBg,
+                            foregroundColor: masteredFg,
+                            side: BorderSide(color: masteredBorder),
+                          ),
+                          onPressed:
+                              canActOnStep ? () => _markMastered(queue) : null,
+                          icon: const Icon(
+                            Icons.workspace_premium_outlined,
+                            size: 18,
+                          ),
+                          label: Text(
+                            S.markMastered,
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
                 _StudyRatingBar(
                   enabled: canActOnStep,

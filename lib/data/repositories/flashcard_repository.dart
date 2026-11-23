@@ -506,15 +506,16 @@ GROUP BY d.topic_id
   }
 
   /// Counts all active (`status = 'learning'`) flashcards across the entire
-  /// database that are due for review as of [asOf] (brand-new cards or cards
-  /// whose latest `due_at <= asOf`).
+  /// database that have been previously reviewed/rated by the user and whose
+  /// scheduled `due_at <= asOf` has arrived. Brand-new unseen cards are not
+  /// included here.
   Future<int> countDueCards({DateTime? asOf}) =>
       guardDb('Count due flashcards', () async {
         final cutoff = asOf == null ? nowMs() : msFromDate(asOf);
         final rows = await db.rawQuery('''
 SELECT COUNT(f.id) AS due_count
 FROM flashcards f
-LEFT JOIN (
+INNER JOIN (
   SELECT r.flashcard_id, r.due_at
   FROM review_history r
   WHERE r.rowid = (
@@ -525,13 +526,15 @@ LEFT JOIN (
   )
 ) latest ON latest.flashcard_id = f.id
 WHERE f.status = 'learning'
-  AND (latest.due_at IS NULL OR latest.due_at <= ?)
+  AND latest.due_at IS NOT NULL
+  AND latest.due_at <= ?
 ''', [cutoff]);
         return (rows.first['due_count'] as int?) ?? 0;
       });
 
   /// Lists all active (`status = 'learning'`) flashcards across all subjects
-  /// that are due for review as of [asOf].
+  /// that have been previously reviewed/rated and whose `due_at <= asOf` has
+  /// arrived.
   Future<List<PrioritizedFlashcard>> listAllDueCards({DateTime? asOf}) =>
       guardDb('List all due flashcards', () async {
         final cutoff = asOf == null ? nowMs() : msFromDate(asOf);
@@ -541,7 +544,7 @@ SELECT
   latest.due_at AS last_due_at,
   latest.interval_days AS last_interval_days
 FROM flashcards f
-LEFT JOIN (
+INNER JOIN (
   SELECT r.flashcard_id, r.due_at, r.interval_days
   FROM review_history r
   WHERE r.rowid = (
@@ -552,12 +555,43 @@ LEFT JOIN (
   )
 ) latest ON latest.flashcard_id = f.id
 WHERE f.status = 'learning'
-  AND (latest.due_at IS NULL OR latest.due_at <= ?)
+  AND latest.due_at IS NOT NULL
+  AND latest.due_at <= ?
 ORDER BY
-  COALESCE(latest.due_at, 0),
+  latest.due_at,
   f.created_at,
   f.id
 ''', [cutoff]);
         return rows.map((r) => _mapPrioritized(r, cutoff)).toList();
+      });
+
+  /// Returns a lookup map `deckId -> (subjectName, bookName, topicName)` so
+  /// study sessions can display which Book/Class and Topic each card comes from.
+  Future<
+      Map<String, ({String subjectName, String bookName, String topicName})>>
+      deckContextByDeckId() => guardDb('Load deck context map', () async {
+        final rows = await db.rawQuery('''
+SELECT
+  d.id AS deck_id,
+  s.name AS subject_name,
+  b.name AS book_name,
+  t.name AS topic_name
+FROM decks d
+JOIN topics t ON d.topic_id = t.id
+JOIN books b ON t.book_id = b.id
+JOIN subjects s ON b.subject_id = s.id
+''');
+        final map = <String,
+            ({String subjectName, String bookName, String topicName})>{};
+        for (final r in rows) {
+          final deckId = r['deck_id'] as String?;
+          if (deckId == null) continue;
+          map[deckId] = (
+            subjectName: (r['subject_name'] as String?) ?? '',
+            bookName: (r['book_name'] as String?) ?? '',
+            topicName: (r['topic_name'] as String?) ?? '',
+          );
+        }
+        return map;
       });
 }

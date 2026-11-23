@@ -41,7 +41,16 @@ class BookRepository extends RepositoryBase {
             where: 'subject_id = ?',
             whereArgs: [subjectId],
             orderBy: 'name COLLATE NOCASE, id');
-        return rows.map(Book.fromMap).toList();
+        final list = rows.map(Book.fromMap).toList();
+        list.sort(
+          (a, b) => compareNaturalNames(
+            a.name,
+            b.name,
+            idA: a.id,
+            idB: b.id,
+          ),
+        );
+        return list;
       });
 
   Future<Book> update(Book b) => guardDb('Update book', () async {
