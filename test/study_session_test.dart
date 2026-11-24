@@ -343,5 +343,57 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('study-empty')), findsOneWidget);
     });
+
+    testWidgets(
+        'study-edit-card button on definition card opens editor and live-updates card text in session',
+        (tester) async {
+      final s = await db.subjects.create(name: 'Informatika Test');
+      final b = await db.books.create(subjectId: s.id, name: '9-klass');
+      final t = await db.topics.create(bookId: b.id, name: 'Web');
+      final deck = await db.decks.getOrCreateDefaultForTopic(t.id);
+      await db.flashcards.create(
+        deckId: deck.id,
+        targetText: 'HTLM', // Typo intended
+        definitionText: 'Gipertekst belgilew tili',
+      );
+
+      await tester.pumpWidget(
+        AppScope(
+          database: db,
+          child: MaterialApp(
+            home: StudySessionScreen.forDeck(
+              deckId: deck.id,
+              deckName: 'Web sabaǵı',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify typo on question card
+      expect(find.text('HTLM'), findsOneWidget);
+
+      // Reveal definition
+      await tester.tap(find.text(S.showDefinition));
+      await tester.pumpAndSettle();
+
+      // Top of definition card has edit button (pencil) on left and hide on right
+      expect(find.byKey(const Key('study-edit-card')), findsOneWidget);
+      expect(find.byKey(const Key('study-toggle-definition')), findsOneWidget);
+
+      // Tap edit button to open FlashcardEditorScreen
+      await tester.tap(find.byKey(const Key('study-edit-card')));
+      await tester.pumpAndSettle();
+
+      // Fix the typo in target word
+      await tester.enterText(find.byKey(const Key('card-target')), 'HTML');
+      await tester.tap(find.byKey(const Key('card-save')));
+      await tester.pumpAndSettle();
+
+      // Returns to study screen: typo fixed to 'HTML' live in session!
+      expect(find.text('HTML'), findsOneWidget);
+      expect(find.text('HTLM'), findsNothing);
+      expect(find.text('Gipertekst belgilew tili'), findsOneWidget);
+    });
   });
 }

@@ -1,7 +1,7 @@
 name: yadla
 description: "Yadla — offline-first flashcard learning application."
 publish_to: 'none'
-version: 0.1.0+1
+version: 1.0.4+4
 
 environment:
   sdk: ^3.13.7

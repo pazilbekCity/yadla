@@ -422,6 +422,12 @@ class S {
         ru: 'Введите ключевое слово или термин.',
       );
 
+  static String get definitionRequired => _pick(
+        kaa: 'Anıqlama yamasa túsindirmeni kiritiń.',
+        uz: 'Taʼrif yoki tushuntirishni kiriting.',
+        ru: 'Введите определение или объяснение.',
+      );
+
   // Preview
   static String get previewTitle => _pick(
         kaa: 'Kartochkanı kóriw',
@@ -1160,5 +1166,72 @@ class S {
         kaa: 'Kartochka kóshirildi.',
         uz: 'Kartochka koʻchirildi.',
         ru: 'Карточка перемещена.',
+      );
+
+  static String get cardEditedSuccess => _pick(
+        kaa: 'Kartochka jańalandı.',
+        uz: 'Kartochka yangilandi.',
+        ru: 'Карточка обновлена.',
+      );
+
+  // Card destination selector labels & dialogs
+  static String get selectBookLabel => _pick(
+        kaa: 'Kitap',
+        uz: 'Kitob',
+        ru: 'Книга',
+      );
+
+  static String get selectClassLabel => _pick(
+        kaa: 'Klass',
+        uz: 'Sinf',
+        ru: 'Класс',
+      );
+
+  static String get selectTopicLabel => _pick(
+        kaa: 'Tema',
+        uz: 'Mavzu',
+        ru: 'Тема',
+      );
+
+  static String get selectBookDialogTitle => _pick(
+        kaa: 'Kitaptı tańlań',
+        uz: 'Kitobni tanlang',
+        ru: 'Выберите книгу',
+      );
+
+  static String get selectClassDialogTitle => _pick(
+        kaa: 'Klasstı tańlań',
+        uz: 'Sinfni tanlang',
+        ru: 'Выберите класс',
+      );
+
+  static String get selectTopicDialogTitle => _pick(
+        kaa: 'Temanı tańlań',
+        uz: 'Mavzuni tanlang',
+        ru: 'Выберите тему',
+      );
+
+  static String get clearSelection => _pick(
+        kaa: 'Biykarlaw',
+        uz: 'Bekor qilish',
+        ru: 'Сбросить',
+      );
+
+  static String get searchTopicHint => _pick(
+        kaa: 'Temanı izlew...',
+        uz: 'Mavzuni qidirish...',
+        ru: 'Поиск темы...',
+      );
+
+  static String get noClassesFound => _pick(
+        kaa: 'Klasslar tabılmadı',
+        uz: 'Sinflar topilmadi',
+        ru: 'Классы не найдены',
+      );
+
+  static String get noTopicsFound => _pick(
+        kaa: 'Temalar tabılmadı',
+        uz: 'Mavzular topilmadi',
+        ru: 'Темы не найдены',
       );
 }

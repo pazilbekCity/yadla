@@ -17,7 +17,7 @@ class AppSettingsRepository extends RepositoryBase {
   /// Identifier of the current APK build release. Incrementing this value in a
   /// new APK release resets the 20-day expiration timer when installed over an
   /// older build while preserving the user's SQLite database.
-  static const currentApkReleaseId = 'yadla-1.0.0+1';
+  static const currentApkReleaseId = 'yadla-1.0.4+4';
 
   /// Maximum duration an installed APK build remains active before requiring
   /// an update from the administrator.

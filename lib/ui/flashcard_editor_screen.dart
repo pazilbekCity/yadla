@@ -4,6 +4,7 @@ import '../data/database/app_database.dart';
 import '../data/database/app_database_exception.dart';
 import '../data/models/catalog_models.dart';
 import '../data/models/flashcard.dart';
+import '../data/repositories/repository_base.dart';
 import '../data/services/image_storage_service.dart';
 import 'app_scope.dart';
 import 'common.dart';
@@ -302,7 +303,12 @@ class _FlashcardEditorScreenState extends State<FlashcardEditorScreen> {
       TextEditingController(text: widget.existing?.imagePath ?? '');
   late ImagePlacement _placement =
       widget.existing?.imagePlacement ?? ImagePlacement.front;
-  late CardDestinationOption? _selectedDestination = widget.initialDestination;
+
+  Subject? _selectedSubject;
+  Book? _selectedBook;
+  Topic? _selectedTopic;
+  bool _hierarchyInitialized = false;
+
   bool _associationExpanded = true;
   bool _busy = false;
   String? _error;
@@ -311,6 +317,75 @@ class _FlashcardEditorScreenState extends State<FlashcardEditorScreen> {
   void initState() {
     super.initState();
     _image.addListener(_onImageTextChanged);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_hierarchyInitialized) {
+      _hierarchyInitialized = true;
+      _initHierarchy();
+    }
+  }
+
+  Future<List<Book>> _loadAllBooks(AppDatabase db) async {
+    final subjects = await db.subjects.getAll();
+    final allBooks = <Book>[];
+    for (final s in subjects) {
+      allBooks.addAll(await db.books.listBySubject(s.id));
+    }
+    return allBooks;
+  }
+
+  Future<List<Topic>> _loadAllTopics(AppDatabase db) async {
+    final books = await _loadAllBooks(db);
+    final allTopics = <Topic>[];
+    for (final b in books) {
+      allTopics.addAll(await db.topics.listByBook(b.id));
+    }
+    return allTopics;
+  }
+
+  Future<void> _initHierarchy() async {
+    final db = AppScope.of(context);
+
+    if (widget.initialDestination != null) {
+      final dest = widget.initialDestination!;
+      final s = await db.subjects.getById(dest.subjectId);
+      final b = await db.books.getById(dest.bookId);
+      final t = await db.topics.getById(dest.topicId);
+      if (mounted) {
+        setState(() {
+          _selectedSubject = s;
+          _selectedBook = b;
+          _selectedTopic = t;
+        });
+      }
+      return;
+    }
+
+    if (widget.deckId.isNotEmpty) {
+      try {
+        final deck = await db.decks.getById(widget.deckId);
+        if (deck != null) {
+          final topic = await db.topics.getById(deck.topicId);
+          if (topic != null) {
+            final book = await db.books.getById(topic.bookId);
+            final subject =
+                book != null ? await db.subjects.getById(book.subjectId) : null;
+            if (mounted) {
+              setState(() {
+                _selectedTopic = topic;
+                _selectedBook = book;
+                _selectedSubject = subject;
+              });
+            }
+          }
+        }
+      } catch (_) {
+        // Fallback gracefully if deck resolution fails.
+      }
+    }
   }
 
   void _onImageTextChanged() {
@@ -365,15 +440,317 @@ class _FlashcardEditorScreenState extends State<FlashcardEditorScreen> {
     });
   }
 
-  Future<void> _changeDestination() async {
-    if (_busy || widget.availableDestinations.isEmpty) return;
-    final picked = await showSelectDestinationDialog(
-      context,
-      options: widget.availableDestinations,
-      currentTopicId: _selectedDestination?.topicId,
+  void _clearAllSelections() {
+    setState(() {
+      _selectedSubject = null;
+      _selectedBook = null;
+      _selectedTopic = null;
+    });
+  }
+
+  Future<void> _pickSubject() async {
+    final db = AppScope.of(context);
+    final subjects = await db.subjects.getAll();
+    if (!mounted) return;
+    if (subjects.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(S.noClassesFound)),
+      );
+      return;
+    }
+
+    final picked = await showDialog<Subject>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(S.selectBookDialogTitle),
+        content: SizedBox(
+          width: 400,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 360),
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: subjects.length,
+              separatorBuilder: (_, _) => const Divider(height: 1),
+              itemBuilder: (_, index) {
+                final s = subjects[index];
+                final isSelected = s.id == _selectedSubject?.id;
+                return ListTile(
+                  dense: true,
+                  selected: isSelected,
+                  leading: Icon(
+                    isSelected
+                        ? Icons.radio_button_checked
+                        : Icons.menu_book_outlined,
+                    size: 20,
+                  ),
+                  title: Text(
+                    s.name,
+                    style: TextStyle(
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.w600,
+                    ),
+                  ),
+                  onTap: () => Navigator.pop(ctx, s),
+                );
+              },
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(S.cancel),
+          ),
+        ],
+      ),
     );
+
     if (picked != null && mounted) {
-      setState(() => _selectedDestination = picked);
+      setState(() {
+        _selectedSubject = picked;
+        if (_selectedBook != null && _selectedBook!.subjectId != picked.id) {
+          _selectedBook = null;
+          _selectedTopic = null;
+        }
+      });
+    }
+  }
+
+  Future<void> _pickBook() async {
+    final db = AppScope.of(context);
+    List<Book> books;
+    if (_selectedSubject != null) {
+      books = await db.books.listBySubject(_selectedSubject!.id);
+    } else {
+      books = await _loadAllBooks(db);
+    }
+    books.sort((a, b) => compareNaturalNames(a.name, b.name));
+
+    if (!mounted) return;
+    if (books.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(S.noClassesFound)),
+      );
+      return;
+    }
+
+    final allSubjects = await db.subjects.getAll();
+    final subjectMap = {for (final s in allSubjects) s.id: s.name};
+
+    if (!mounted) return;
+    final picked = await showDialog<Book>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(S.selectClassDialogTitle),
+        content: SizedBox(
+          width: 400,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 360),
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: books.length,
+              separatorBuilder: (_, _) => const Divider(height: 1),
+              itemBuilder: (_, index) {
+                final b = books[index];
+                final isSelected = b.id == _selectedBook?.id;
+                final subjName = subjectMap[b.subjectId];
+                return ListTile(
+                  dense: true,
+                  selected: isSelected,
+                  leading: Icon(
+                    isSelected
+                        ? Icons.radio_button_checked
+                        : Icons.folder_outlined,
+                    size: 20,
+                  ),
+                  title: Text(
+                    b.name,
+                    style: TextStyle(
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.w600,
+                    ),
+                  ),
+                  subtitle: (_selectedSubject == null && subjName != null)
+                      ? Text(subjName)
+                      : null,
+                  onTap: () => Navigator.pop(ctx, b),
+                );
+              },
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(S.cancel),
+          ),
+        ],
+      ),
+    );
+
+    if (picked != null && mounted) {
+      Subject? newSubj = _selectedSubject;
+      if (newSubj == null || newSubj.id != picked.subjectId) {
+        newSubj = await db.subjects.getById(picked.subjectId);
+      }
+      setState(() {
+        _selectedBook = picked;
+        _selectedSubject = newSubj;
+        if (_selectedTopic != null && _selectedTopic!.bookId != picked.id) {
+          _selectedTopic = null;
+        }
+      });
+    }
+  }
+
+  Future<void> _pickTopic() async {
+    final db = AppScope.of(context);
+    List<Topic> topics;
+    if (_selectedBook != null) {
+      topics = await db.topics.listByBook(_selectedBook!.id);
+    } else if (_selectedSubject != null) {
+      final books = await db.books.listBySubject(_selectedSubject!.id);
+      topics = [];
+      for (final b in books) {
+        topics.addAll(await db.topics.listByBook(b.id));
+      }
+    } else {
+      topics = await _loadAllTopics(db);
+    }
+    topics.sort((a, b) => compareNaturalNames(a.name, b.name));
+
+    if (!mounted) return;
+    if (topics.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(S.noTopicsFound)),
+      );
+      return;
+    }
+
+    final allBooks = await _loadAllBooks(db);
+    final bookMap = {for (final b in allBooks) b.id: b};
+
+    if (!mounted) return;
+    final picked = await showDialog<Topic>(
+      context: context,
+      builder: (ctx) {
+        var query = '';
+        return StatefulBuilder(
+          builder: (dialogCtx, setDialogState) {
+            final filtered = query.isEmpty
+                ? topics
+                : topics
+                    .where((t) =>
+                        t.name.toLowerCase().contains(query.toLowerCase()))
+                    .toList();
+
+            return AlertDialog(
+              title: Text(S.selectTopicDialogTitle),
+              content: SizedBox(
+                width: 400,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 420),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextField(
+                        autofocus: false,
+                        decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.search, size: 20),
+                          hintText: S.searchTopicHint,
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        onChanged: (val) {
+                          setDialogState(() => query = val.trim());
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      if (filtered.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 24),
+                          child: Text(
+                            S.noTopicsFound,
+                            style: TextStyle(
+                              color: Theme.of(context).hintColor,
+                            ),
+                          ),
+                        )
+                      else
+                        Flexible(
+                          child: ListView.separated(
+                            shrinkWrap: true,
+                            itemCount: filtered.length,
+                            separatorBuilder: (_, _) =>
+                                const Divider(height: 1),
+                            itemBuilder: (_, index) {
+                              final t = filtered[index];
+                              final isSelected = t.id == _selectedTopic?.id;
+                              final parentBook = bookMap[t.bookId];
+                              return ListTile(
+                                dense: true,
+                                selected: isSelected,
+                                leading: Icon(
+                                  isSelected
+                                      ? Icons.radio_button_checked
+                                      : Icons.description_outlined,
+                                  size: 20,
+                                ),
+                                title: Text(
+                                  t.name,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.w600,
+                                  ),
+                                ),
+                                subtitle: parentBook != null
+                                    ? Text(parentBook.name)
+                                    : null,
+                                onTap: () => Navigator.pop(ctx, t),
+                              );
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text(S.cancel),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (picked != null && mounted) {
+      Book? newBook = _selectedBook;
+      if (newBook == null || newBook.id != picked.bookId) {
+        newBook = await db.books.getById(picked.bookId);
+      }
+      Subject? newSubj = _selectedSubject;
+      if (newBook != null &&
+          (newSubj == null || newSubj.id != newBook.subjectId)) {
+        newSubj = await db.subjects.getById(newBook.subjectId);
+      }
+      setState(() {
+        _selectedTopic = picked;
+        _selectedBook = newBook;
+        _selectedSubject = newSubj;
+      });
     }
   }
 
@@ -389,9 +766,73 @@ class _FlashcardEditorScreenState extends State<FlashcardEditorScreen> {
     final assoc = _association.text.trim();
     final def = _definition.text.trim();
     final img = _image.text.trim();
-    final targetDeckId = _selectedDestination?.deckId ?? widget.deckId;
 
     try {
+      String targetDeckId;
+      if (_selectedTopic != null) {
+        final deck = await db.decks.getOrCreateDefaultForTopic(
+          _selectedTopic!.id,
+          defaultName: _selectedTopic!.name,
+        );
+        targetDeckId = deck.id;
+        await QuickCardDestinationResolver.recordLastActiveTopic(
+          db,
+          _selectedTopic!.id,
+        );
+      } else if (_selectedBook != null) {
+        var topics = await db.topics.listByBook(_selectedBook!.id);
+        if (topics.isEmpty) {
+          final t = await db.topics.create(
+            bookId: _selectedBook!.id,
+            name: S.generalDefaultName,
+          );
+          topics = [t];
+        }
+        final deck = await db.decks.getOrCreateDefaultForTopic(
+          topics.first.id,
+          defaultName: topics.first.name,
+        );
+        targetDeckId = deck.id;
+        await QuickCardDestinationResolver.recordLastActiveTopic(
+          db,
+          topics.first.id,
+        );
+      } else if (_selectedSubject != null) {
+        var books = await db.books.listBySubject(_selectedSubject!.id);
+        if (books.isEmpty) {
+          final b = await db.books.create(
+            subjectId: _selectedSubject!.id,
+            name: S.generalDefaultName,
+          );
+          books = [b];
+        }
+        var topics = await db.topics.listByBook(books.first.id);
+        if (topics.isEmpty) {
+          final t = await db.topics.create(
+            bookId: books.first.id,
+            name: S.generalDefaultName,
+          );
+          topics = [t];
+        }
+        final deck = await db.decks.getOrCreateDefaultForTopic(
+          topics.first.id,
+          defaultName: topics.first.name,
+        );
+        targetDeckId = deck.id;
+        await QuickCardDestinationResolver.recordLastActiveTopic(
+          db,
+          topics.first.id,
+        );
+      } else {
+        if (widget.deckId.isNotEmpty) {
+          targetDeckId = widget.deckId;
+        } else {
+          final resolved =
+              await QuickCardDestinationResolver.resolveForQuickAdd(db);
+          targetDeckId = resolved.initial.deckId;
+        }
+      }
+
       final existing = widget.existing;
       if (existing == null) {
         await repo.create(
@@ -415,12 +856,6 @@ class _FlashcardEditorScreenState extends State<FlashcardEditorScreen> {
             clearImage: img.isEmpty,
             imagePlacement: _placement,
           ),
-        );
-      }
-      if (_selectedDestination != null) {
-        await QuickCardDestinationResolver.recordLastActiveTopic(
-          db,
-          _selectedDestination!.topicId,
         );
       }
       if (mounted) Navigator.pop(context, true);
@@ -451,6 +886,9 @@ class _FlashcardEditorScreenState extends State<FlashcardEditorScreen> {
     final isEdit = widget.existing != null;
     final currentImagePath = _image.text.trim();
     final hasImage = currentImagePath.isNotEmpty;
+    final hasSelection = _selectedSubject != null ||
+        _selectedBook != null ||
+        _selectedTopic != null;
 
     return Scaffold(
       appBar: AppBar(
@@ -467,73 +905,49 @@ class _FlashcardEditorScreenState extends State<FlashcardEditorScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   children: [
-                    if (_selectedDestination != null) ...[
-                      InkWell(
-                        key: const Key('card-destination-selector'),
-                        borderRadius: BorderRadius.circular(10),
-                        onTap: widget.availableDestinations.length > 1
-                            ? _changeDestination
-                            : null,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .primaryContainer
-                                .withValues(alpha: 0.45),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color:
-                                  Theme.of(context).colorScheme.outlineVariant,
+                    // Top row: Kitap tańlaw, Klass tańlaw, Tema tańlaw, hám qızıl ✕ túyme
+                    Container(
+                      key: const Key('card-destination-selector'),
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _DestinationButton(
+                              key: const Key('card-select-book'),
+                              title:
+                                  _selectedSubject?.name ?? S.selectBookLabel,
+                              isSelected: _selectedSubject != null,
+                              onTap: _pickSubject,
                             ),
                           ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.place_outlined,
-                                size: 18,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                '${S.cardDestinationLabel} ',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .labelMedium
-                                    ?.copyWith(fontWeight: FontWeight.w600),
-                              ),
-                              Expanded(
-                                child: Text(
-                                  _selectedDestination!.fullLabel,
-                                  key: const Key('card-destination-label'),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .labelLarge
-                                      ?.copyWith(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primary,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                ),
-                              ),
-                              if (widget.availableDestinations.length > 1)
-                                Icon(
-                                  Icons.arrow_drop_down,
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                            ],
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: _DestinationButton(
+                              key: const Key('card-select-class'),
+                              title: _selectedBook?.name ?? S.selectClassLabel,
+                              isSelected: _selectedBook != null,
+                              onTap: _pickBook,
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: _DestinationButton(
+                              key: const Key('card-select-topic'),
+                              title: _selectedTopic?.name ?? S.selectTopicLabel,
+                              isSelected: _selectedTopic != null,
+                              onTap: _pickTopic,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          _ClearDestinationSquareButton(
+                            key: const Key('card-clear-destination'),
+                            onPressed:
+                                hasSelection ? _clearAllSelections : null,
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 8),
-                    ],
-                    // 1. Gilt sóz (Target word)
+                    ),
+                    // 1. Gilt sóz (Target word) - Shártli
                     TextFormField(
                       key: const Key('card-target'),
                       controller: _target,
@@ -546,7 +960,7 @@ class _FlashcardEditorScreenState extends State<FlashcardEditorScreen> {
                           : null,
                     ),
                     const SizedBox(height: 8),
-                    // 2. Anıqlama (Definition)
+                    // 2. Anıqlama (Definition) - Shártli
                     TextFormField(
                       key: const Key('card-definition'),
                       controller: _definition,
@@ -555,9 +969,12 @@ class _FlashcardEditorScreenState extends State<FlashcardEditorScreen> {
                         isDense: true,
                       ),
                       maxLines: 2,
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? S.definitionRequired
+                          : null,
                     ),
                     const SizedBox(height: 8),
-                    // 3. Assotsiaciya (Association) — collapsible by user
+                    // 3. Assotsiaciya (Association) — ıqtıyarlı
                     if (_associationExpanded)
                       TextFormField(
                         key: const Key('card-association'),
@@ -589,6 +1006,7 @@ class _FlashcardEditorScreenState extends State<FlashcardEditorScreen> {
                         ),
                       ),
                     const SizedBox(height: 8),
+                    // 4. Súwret — ıqtıyarlı
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
@@ -678,6 +1096,136 @@ class _FlashcardEditorScreenState extends State<FlashcardEditorScreen> {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Rectangular selector button for Kitap, Klass, and Tema in the top destination row.
+class _DestinationButton extends StatelessWidget {
+  const _DestinationButton({
+    super.key,
+    required this.title,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String title;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final primaryColor = cs.primary;
+    final isDark = theme.brightness == Brightness.dark;
+
+    final bg = isSelected
+        ? (isDark
+            ? primaryColor.withValues(alpha: 0.22)
+            : const Color(0xFFE9F1F7))
+        : (isDark ? const Color(0xFF1E2832) : const Color(0xFFF3F6F9));
+
+    final borderColor = isSelected
+        ? primaryColor.withValues(alpha: 0.6)
+        : (isDark ? Colors.white12 : const Color(0xFFD6DFE7));
+
+    final textColor = isSelected
+        ? (isDark ? const Color(0xFF90CAF9) : primaryColor)
+        : (isDark ? Colors.white60 : const Color(0xFF5A6E82));
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          height: 46,
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: borderColor, width: 1.2),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    color: textColor,
+                  ),
+                ),
+              ),
+              Icon(
+                Icons.arrow_drop_down,
+                size: 16,
+                color: textColor,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Red square button on the far right of the destination row that clears all 3 selections.
+class _ClearDestinationSquareButton extends StatelessWidget {
+  const _ClearDestinationSquareButton({
+    super.key,
+    required this.onPressed,
+  });
+
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final enabled = onPressed != null;
+
+    final bg = enabled
+        ? (isDark ? const Color(0xFF3E1C1F) : const Color(0xFFFFECEE))
+        : (isDark ? const Color(0xFF1F242A) : const Color(0xFFF3F5F7));
+
+    final borderColor = enabled
+        ? (isDark ? const Color(0xFF7A2E35) : const Color(0xFFF5B7B1))
+        : (isDark ? Colors.white12 : const Color(0xFFE0E5EA));
+
+    final iconColor = enabled
+        ? (isDark ? const Color(0xFFEF5350) : const Color(0xFFD32F2F))
+        : (isDark ? Colors.white24 : const Color(0xFFA5B2BE));
+
+    return Tooltip(
+      message: S.clearSelection,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: borderColor, width: 1.2),
+            ),
+            alignment: Alignment.center,
+            child: Icon(
+              Icons.close_rounded,
+              size: 20,
+              color: iconColor,
+            ),
           ),
         ),
       ),

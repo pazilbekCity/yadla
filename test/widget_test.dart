@@ -551,4 +551,49 @@ Klass,Tema,Gilt sóz,Anıqlama / Túsinik,Sáne,,Assosaciya
     // Card is moved out of Tez jazbalar and into Tariyx
     expect(await db.flashcards.listBySubject(tariyxSubj.id), hasLength(2));
   });
+
+  testWidgets(
+      'Flashcard editor: 4 destination controls in 1 row, required target and definition, optional association and image',
+      (tester) async {
+    await tester.pumpWidget(YadlaApp(openDatabase: () async => db));
+    await tester.pumpAndSettle();
+
+    // Tap "+ Tez karta"
+    await tester.tap(find.byKey(const Key('fab-quick-add-card')));
+    await tester.pumpAndSettle();
+
+    // 1. Verify 4 controls in 1 row
+    expect(find.byKey(const Key('card-destination-selector')), findsOneWidget);
+    expect(find.byKey(const Key('card-select-book')), findsOneWidget);
+    expect(find.byKey(const Key('card-select-class')), findsOneWidget);
+    expect(find.byKey(const Key('card-select-topic')), findsOneWidget);
+    expect(find.byKey(const Key('card-clear-destination')), findsOneWidget);
+
+    // 2. Try saving empty -> target required error
+    await tester.tap(find.byKey(const Key('card-save')));
+    await tester.pumpAndSettle();
+    expect(find.text(S.targetRequired), findsOneWidget);
+
+    // 3. Fill target only -> definition required error
+    await tester.enterText(find.byKey(const Key('card-target')), 'Monitor');
+    await tester.tap(find.byKey(const Key('card-save')));
+    await tester.pumpAndSettle();
+    expect(find.text(S.definitionRequired), findsOneWidget);
+
+    // 4. Clear destination via red square button
+    await tester.tap(find.byKey(const Key('card-clear-destination')));
+    await tester.pumpAndSettle();
+
+    // 5. Fill definition and save with cleared (optional) destination
+    await tester.enterText(
+      find.byKey(const Key('card-definition')),
+      'Maǵlıwmatlardı vizual kórsetiw qurılması',
+    );
+    await tester.tap(find.byKey(const Key('card-save')));
+    await tester.pumpAndSettle();
+
+    // Card is saved successfully into database
+    final cards = await db.flashcards.listAll();
+    expect(cards.any((c) => c.targetText == 'Monitor'), isTrue);
+  });
 }

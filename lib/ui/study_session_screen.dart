@@ -10,6 +10,7 @@ import '../data/models/review_and_settings.dart';
 import '../data/repositories/flashcard_repository.dart';
 import 'app_scope.dart';
 import 'common.dart';
+import 'flashcard_editor_screen.dart';
 import 'flashcard_image_view.dart';
 import 'strings.dart';
 
@@ -124,6 +125,15 @@ class StudySessionQueue {
   void toggleAssociation() {
     if (isEmpty || isCompleted) return;
     currentViewStep.associationExpanded = !currentViewStep.associationExpanded;
+  }
+
+  /// Updates all occurrences of [updated] in the session steps with the new data.
+  void updateCard(Flashcard updated) {
+    for (final step in _steps) {
+      if (step.card.id == updated.id) {
+        step.card = updated;
+      }
+    }
   }
 
   /// Applies [rating] to the active step. Returns `false` if the step was
@@ -397,6 +407,31 @@ class _StudySessionScreenState extends State<StudySessionScreen> {
         return S.rateGood;
       case ReviewRating.easy:
         return S.rateEasy;
+    }
+  }
+
+  Future<void> _editCurrentCard(
+    StudySessionQueue queue,
+    Flashcard card,
+  ) async {
+    final db = AppScope.of(context);
+    final saved = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute<bool>(
+        builder: (_) => FlashcardEditorScreen(
+          deckId: card.deckId,
+          existing: card,
+        ),
+      ),
+    );
+    if (saved == true && mounted) {
+      final updated = await db.flashcards.getById(card.id);
+      if (updated != null && mounted) {
+        setState(() {
+          queue.updateCard(updated);
+        });
+        showMessage(context, S.cardEditedSuccess);
+      }
     }
   }
 
@@ -679,29 +714,58 @@ class _StudySessionScreenState extends State<StudySessionScreen> {
                                   crossAxisAlignment:
                                       CrossAxisAlignment.stretch,
                                   children: [
-                                    Align(
-                                      alignment: Alignment.centerRight,
-                                      child: TextButton.icon(
-                                        key: const Key(
-                                            'study-toggle-definition'),
-                                        style: TextButton.styleFrom(
-                                          visualDensity: VisualDensity.compact,
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        TextButton.icon(
+                                          key: const Key('study-edit-card'),
+                                          style: TextButton.styleFrom(
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                            padding:
+                                                const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 4,
+                                            ),
+                                          ),
+                                          onPressed: () =>
+                                              _editCurrentCard(queue, card),
+                                          icon: const Icon(
+                                            Icons.edit_outlined,
+                                            size: 16,
+                                          ),
+                                          label: Text(
+                                            S.edit,
+                                            style:
+                                                const TextStyle(fontSize: 13),
                                           ),
                                         ),
-                                        onPressed: () =>
-                                            setState(queue.toggleReveal),
-                                        icon: const Icon(
-                                          Icons.visibility_off_outlined,
-                                          size: 16,
+                                        TextButton.icon(
+                                          key: const Key(
+                                              'study-toggle-definition'),
+                                          style: TextButton.styleFrom(
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                            padding:
+                                                const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 4,
+                                            ),
+                                          ),
+                                          onPressed: () =>
+                                              setState(queue.toggleReveal),
+                                          icon: const Icon(
+                                            Icons.visibility_off_outlined,
+                                            size: 16,
+                                          ),
+                                          label: Text(
+                                            S.hideDefinition,
+                                            style:
+                                                const TextStyle(fontSize: 13),
+                                          ),
                                         ),
-                                        label: Text(
-                                          S.hideDefinition,
-                                          style: const TextStyle(fontSize: 13),
-                                        ),
-                                      ),
+                                      ],
                                     ),
                                     const SizedBox(height: 4),
                                     Padding(
